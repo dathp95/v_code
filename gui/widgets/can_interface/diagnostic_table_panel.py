@@ -358,6 +358,10 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
     vehicle_resources_changed=Signal()
 
+    sequence_run_requested = Signal()
+
+    sequence_stop_requested = Signal()
+
     COL_CHECK, COL_STEP, COL_SEQUENCE_NAME, COL_ECU, COL_REQUEST, COL_SEND, COL_DELAY, COL_REPEAT, COL_EXPECTED, COL_RECEIVE, COL_RESULT, COL_COMMENT = range(12)
 
     HEADERS = ("✓", "Step", "Test sequence name", "ECU", "Payload (HEX)", ">", "Delay (ms)", "Repeat",
@@ -381,6 +385,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         self._request_busy=False
 
         self._send_available=True  # Standalone view can still emit typed action intent.
+
+        self._sequence_running = False
 
         self.import_diagnostics = ()
 
@@ -410,6 +416,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         self.title.setMinimumWidth(60)
 
+        self.title.hide()
+
         self.notice = PrimaryLabel("")
 
         self.notice.setTextFormat(Qt.PlainText)
@@ -426,29 +434,36 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         self.btn_load.hide()
 
-        self.btn_settings = ActionButton("Settings", width=72, height=30)
+        self.btn_settings = ActionButton("Setting", width=72, height=30)
 
         self.btn_settings.setCheckable(True)
 
         self.btn_settings.toggled.connect(self.execution_settings.setVisible)
 
-        self.btn_add.setText("Add Row")
+        self.btn_add.setText("+Add Row")
+        self.btn_add.setMinimumSize(85, 30)
+        self.btn_add.setMaximumHeight(30)
 
-        self.btn_export.setText("Save")
-
-        self.btn_export.hide()  # Compatibility signal remains; visible Save belongs to sidebar.
-
-        self.btn_run.setText("Run Selected")
-
+        self.btn_run.setText("RUN")
+        self.btn_run.setMinimumSize(75, 30)
+        self.btn_run.setMaximumHeight(30)
         self.btn_run.setEnabled(False)
+        self.btn_run.setToolTip("Run diagnostic sequence from top to bottom.")
+        self.btn_run.show()
 
+        self.btn_export.setText("EXPORT")
+        self.btn_export.setMinimumSize(85, 30)
+        self.btn_export.setMaximumHeight(30)
+        self.btn_export.setEnabled(True)
+        self.btn_export.setToolTip("Export diagnostic sequence to Excel report (.xlsx)")
+        self.btn_export.show()
+
+        self.btn_stop.setText("STOP")
+        self.btn_stop.setMinimumSize(75, 30)
+        self.btn_stop.setMaximumHeight(30)
         self.btn_stop.setEnabled(False)
-
-        self.btn_run.setToolTip("Automatic sequence execution is not enabled in M04.")
-
-        self.btn_stop.setToolTip(self.btn_run.toolTip())
-
-        self.btn_stop.hide()
+        self.btn_stop.setToolTip("Stop sequence execution.")
+        self.btn_stop.show()
 
         self.vehicle_selector.setMaximumWidth(210)
 
@@ -460,15 +475,19 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         toolbar.setSpacing(6)
 
-        toolbar.addWidget(self.title, 1)
-
+        # Căn trái: Vehicle | Combobox (vehicle) | +Add Row | Delete | Setting
         toolbar.addWidget(self.vehicle_selector)
+        toolbar.addWidget(self.btn_add)
+        toolbar.addWidget(self.btn_delete)
+        toolbar.addWidget(self.btn_settings)
 
-        for button in (self.btn_add, self.btn_delete, self.btn_load, self.btn_export, self.btn_run, self.btn_settings):
+        # Căn dãn cách giữa
+        toolbar.addStretch(1)
 
-            button.setMinimumSize(button.minimumWidth() if button not in (self.btn_add, self.btn_export) else 66, 30)
-
-            toolbar.addWidget(button)
+        # Căn phải: RUN | EXPORT | STOP (kế thừa primary button)
+        toolbar.addWidget(self.btn_run)
+        toolbar.addWidget(self.btn_export)
+        toolbar.addWidget(self.btn_stop)
 
         layout.insertLayout(0, toolbar)
 
@@ -480,7 +499,11 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         self.btn_load.clicked.connect(self.load_requested)
 
-        self.btn_export.clicked.connect(self.save_requested)
+        self.btn_export.clicked.connect(self.export_excel)
+
+        self.btn_run.clicked.connect(self.sequence_run_requested)
+
+        self.btn_stop.clicked.connect(self.sequence_stop_requested)
 
         self.table.currentCellChanged.connect(self._selection_changed)
         self.table.itemSelectionChanged.connect(
@@ -542,6 +565,10 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         self._selection_changed()
 
+        self._update_run_button_state()
+
+        self._update_run_button_state()
+
         self.document_changed.emit()
 
     def mark_saved(self):
@@ -557,6 +584,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         self.step_ids.insert(self._selected_insert_index(), uuid4().hex)
 
         super().fn_add_step_after_selected()
+
+        self._update_run_button_state()
 
     def _replace_steps(self, steps):
 
@@ -583,6 +612,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         self.selected_rows_changed.emit(self.checked_step_ids())
 
         self._selection_changed()
+
+        self._update_run_button_state()
 
     def _populate_step_row(self, row, step):
 
@@ -807,6 +838,28 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         self._send_available=bool(available)
 
         for row in range(self.table.rowCount()): self._set_button_state(row)
+
+        self._update_run_button_state()
+
+    def is_sequence_running(self) -> bool:
+
+        return getattr(self, "_sequence_running", False)
+
+    def set_sequence_running(self, running: bool):
+
+        self._sequence_running = bool(running)
+
+        self.btn_run.setEnabled(not running and self._send_available and len(self.step_ids) > 0)
+
+        self.btn_stop.setEnabled(running)
+
+    def _update_run_button_state(self):
+
+        if not getattr(self, "_sequence_running", False):
+
+            self.btn_run.setEnabled(self._send_available and len(self.step_ids) > 0)
+
+            self.btn_stop.setEnabled(False)
 
     def _set_button_state(self, row):
 
@@ -1318,6 +1371,111 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
                                     [self._runtime.get(key, ('', '', ''))[1] for key in self.step_ids])
 
+    def export_excel(self):
+        from core.services.diagnostic_sequence_report_service import DiagnosticSequenceReportService
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+
+        if not self._test_case or not self.step_ids:
+            QMessageBox.warning(self, "Export", "No sequence data to export.")
+            return
+
+        service = DiagnosticSequenceReportService()
+        report_folder = service.fn_get_report_folder()
+        seq_name = self._test_case.name if self._test_case else "Sequence"
+        vehicle_name = self.fn_current_vehicle()
+        default_filename = service.fn_default_output_filename(seq_name, vehicle_name)
+        default_path = report_folder / default_filename
+
+        output_file, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Excel Report",
+            str(default_path),
+            "Excel Files (*.xlsx)",
+        )
+        if not output_file:
+            return
+
+        if not str(output_file).lower().endswith(".xlsx"):
+            output_file = str(output_file) + ".xlsx"
+
+        steps_data = []
+        for row, step_id in enumerate(self.step_ids):
+            step = self._test_case.steps[row] if self._test_case and row < len(self._test_case.steps) else None
+            runtime_payload, outcome, detail = self._runtime.get(step_id, ("—", "—", ""))
+
+            comment = step.comment if step else ""
+            comment_item = self.table.item(row, self.COL_COMMENT)
+            if comment_item is not None:
+                comment = comment_item.text()
+
+            seq_item = self.table.item(row, self.COL_SEQUENCE_NAME)
+            step_seq_name = seq_item.text() if seq_item is not None and seq_item.text().strip() else (step.sequence_name if step else seq_name)
+
+            ecu_cell = self.table.cellWidget(row, self.COL_ECU)
+            ecu_text = ecu_cell.currentText() if ecu_cell is not None else (step.ecu if step else "")
+
+            delay_val = 100
+            delay_item = self.table.item(row, self.COL_DELAY)
+            if delay_item is not None and delay_item.text().strip().isdigit():
+                delay_val = int(delay_item.text().strip())
+            elif step and step.delay_ms is not None:
+                delay_val = step.delay_ms
+
+            repeat_val = 1
+            repeat_item = self.table.item(row, self.COL_REPEAT)
+            if repeat_item is not None and repeat_item.text().strip().isdigit():
+                repeat_val = int(repeat_item.text().strip())
+            elif step and step.repeat is not None:
+                repeat_val = step.repeat
+
+            req_val = step.request if step else ""
+            req_item = self.table.item(row, self.COL_REQUEST)
+            if req_item is not None:
+                req_val = req_item.text()
+
+            exp_val = step.expected_response if step else ""
+            exp_item = self.table.item(row, self.COL_EXPECTED)
+            if exp_item is not None:
+                exp_val = exp_item.text()
+
+            steps_data.append({
+                "step": row + 1,
+                "sequence_name": step_seq_name,
+                "ecu": ecu_text,
+                "request": req_val,
+                "delay_ms": delay_val,
+                "repeat": repeat_val,
+                "expected": exp_val,
+                "receive": runtime_payload,
+                "result": outcome,
+                "comment": comment,
+            })
+
+        try:
+            saved_path = service.export_sequence(
+                sequence_name=seq_name,
+                vehicle_name=vehicle_name,
+                steps_data=steps_data,
+                output_file=output_file,
+            )
+            QMessageBox.information(
+                self,
+                "Export",
+                f"Excel report saved:\n\n{saved_path}",
+            )
+        except PermissionError:
+            QMessageBox.warning(
+                self,
+                "Export Error",
+                "Cannot save Excel report. Please close the Excel file and try again.",
+            )
+        except Exception as error:
+            QMessageBox.critical(
+                self,
+                "Export Error",
+                str(error),
+            )
+
     def apply_import(self, imported, mode):
 
         if mode not in ('append', 'replace') or self._test_case is None:
@@ -1507,9 +1665,13 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
             for widget in (
                 self.title,
                 self.notice,
+                self.btn_add,
                 self.btn_delete,
                 self.btn_load,
                 self.btn_settings,
+                self.btn_run,
+                self.btn_export,
+                self.btn_stop,
             ):
                 widget.fn_refresh_theme()
 

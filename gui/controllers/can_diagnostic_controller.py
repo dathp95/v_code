@@ -36,6 +36,16 @@ class CanDiagnosticController(QObject):
         self._security_timer.setInterval(250)
         self._security_timer.timeout.connect(self._refresh_security_status)
         self._security_timer.start()
+
+        self._sequence_running = False
+        self._sequence_index = 0
+        self._sequence_repeat_count = 0
+        self._sequence_timer = QTimer(self)
+        self._sequence_timer.setSingleShot(True)
+        self._sequence_timer.timeout.connect(self._execute_sequence_step)
+
+        panel.sequence_run_requested.connect(self.start_sequence)
+        panel.sequence_stop_requested.connect(self.stop_sequence)
         panel.row_send_requested.connect(self.send_row)
         panel.document_changed.connect(self.invalidate)
         panel.sequence_modified.connect(self.invalidate)
@@ -58,8 +68,11 @@ class CanDiagnosticController(QObject):
             self._invalidate_security()
             self._session_epoch+=1
             self._security_connection_id=connection_id
-        self.panel.set_send_available(not self._closed and self.service.snapshot.state == CANConnectionState.CONNECTED
-                                      and self.task.alive and not self.task.running)
+        is_connected = (not self._closed and self.service.snapshot.state == CANConnectionState.CONNECTED
+                        and self.task.alive and not self.task.running)
+        if self._sequence_running and not is_connected:
+            self.stop_sequence()
+        self.panel.set_send_available(is_connected)
         self._refresh_security_status()
 
     def _connection_identity(self):
@@ -275,6 +288,7 @@ class CanDiagnosticController(QObject):
             self._state()
 
     def invalidate(self,*_):
+        self.stop_sequence()
         self.generation+=1
         self._invalidate_security()
         if self._active is not None:
@@ -354,12 +368,117 @@ class CanDiagnosticController(QObject):
         # 6. Display one final notice.
         self.panel.show_notice(notice)
 
+        if self._sequence_running and not self._closed:
+            self._on_step_finished(request.step_id)
+
+    def start_sequence(self):
+        if self._closed or self._sequence_running:
+            return
+        if not self.panel.step_ids:
+            self.panel.show_notice("No steps to run.")
+            return
+        if (self.service.snapshot.state != CANConnectionState.CONNECTED
+                or not self.task.alive or self.task.running):
+            self.panel.show_notice("Connect the selected Vector channel before running sequence.")
+            return
+        if self._active is not None or self.task.diagnostic_busy or self.auto_security.busy:
+            self.panel.show_notice("Another diagnostic operation is currently busy.")
+            return
+
+        self._sequence_running = True
+        self._sequence_index = 0
+        self._sequence_repeat_count = 0
+        self.panel.set_sequence_running(True)
+        self.panel.reset_runtime_results()
+        self.panel.show_notice(f"Running sequence ({len(self.panel.step_ids)} steps)...")
+        self._execute_sequence_step()
+
+    def _execute_sequence_step(self):
+        if not self._sequence_running or self._closed:
+            return
+        if self._sequence_index >= len(self.panel.step_ids):
+            self._finish_sequence(completed=True)
+            return
+
+        key = self.panel.step_ids[self._sequence_index]
+        step = self.panel.step_for_id(key)
+        if step is None:
+            self._sequence_index += 1
+            self._sequence_repeat_count = 0
+            self._execute_sequence_step()
+            return
+
+        self.panel.table.selectRow(self._sequence_index)
+        repeat_total = max(1, getattr(step, 'repeat', 1) or 1)
+        step_desc = step.sequence_name or step.ecu or f"Step {self._sequence_index + 1}"
+        self.panel.show_notice(
+            f"Running step {self._sequence_index + 1}/{len(self.panel.step_ids)}: {step_desc} "
+            f"({self._sequence_repeat_count + 1}/{repeat_total})..."
+        )
+
+        self.send_row(key)
+
+        if self._active is None and not self.auto_security.busy:
+            self._on_step_finished(key)
+
+    def _on_step_finished(self, step_id):
+        if not self._sequence_running or self._closed:
+            return
+        if self._sequence_index >= len(self.panel.step_ids):
+            self._finish_sequence(completed=True)
+            return
+
+        current_key = self.panel.step_ids[self._sequence_index]
+        if step_id != current_key:
+            return
+
+        step = self.panel.step_for_id(current_key)
+        repeat_total = max(1, getattr(step, 'repeat', 1) or 1) if step else 1
+        self._sequence_repeat_count += 1
+
+        if self._sequence_repeat_count < repeat_total:
+            delay_ms = max(50, getattr(step, 'delay_ms', 100) or 100) if step else 100
+            self._sequence_timer.start(delay_ms)
+            return
+
+        self._sequence_repeat_count = 0
+        self._sequence_index += 1
+
+        if self._sequence_index >= len(self.panel.step_ids):
+            self._finish_sequence(completed=True)
+            return
+
+        delay_ms = max(50, getattr(step, 'delay_ms', 100) or 100) if step else 100
+        self._sequence_timer.start(delay_ms)
+
+    def stop_sequence(self):
+        if not self._sequence_running:
+            return
+        self._sequence_timer.stop()
+        if self._active is not None:
+            self.task.cancel_diagnostic()
+            if 0 <= self._sequence_index < len(self.panel.step_ids):
+                cur_key = self.panel.step_ids[self._sequence_index]
+                self.panel.set_step_result(cur_key, "", "Cancelled", "Stopped by user")
+        if self.auto_security.busy:
+            self.auto_security.cancel()
+        self._finish_sequence(completed=False)
+        self.panel.show_notice("Sequence execution stopped by user.")
+
+    def _finish_sequence(self, completed=True):
+        self._sequence_running = False
+        self._sequence_timer.stop()
+        self.panel.set_sequence_running(False)
+        if completed:
+            self.panel.show_notice(f"Sequence execution completed ({len(self.panel.step_ids)} steps).")
+        self._state()
 
     def _frames(self,frames,dropped):
         if self._closed: return
         self.monitor.append_frame_batch(frames,dropped=dropped)
 
     def close(self):
+        self.stop_sequence()
         self._closed=True
         self._security_timer.stop()
         self._invalidate_security()

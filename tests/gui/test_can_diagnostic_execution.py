@@ -112,7 +112,11 @@ class CanDiagnosticExecutionTests(unittest.TestCase):
         self.addCleanup(ThemeManager.fn_set_theme,ThemeManager.fn_theme())
         for theme in (ThemeType.DARK,ThemeType.LIGHT):
             ThemeManager.fn_set_theme(theme);self.tab.fn_refresh_theme();self.assertEqual(self.outcome(),'Passed')
-        self.assertFalse(panel.btn_run.isEnabled())
+        self.assertTrue(panel.btn_run.isEnabled())
+        self.assertEqual(panel.btn_run.text(), 'RUN')
+        self.assertEqual(panel.btn_export.text(), 'EXPORT')
+        self.assertEqual(panel.btn_stop.text(), 'STOP')
+        self.assertFalse(panel.btn_stop.isEnabled())
         self.tab.recording_controller.refresh()
         self.assertTrue(self.tab.monitor_panel.btn_blf.isEnabled())
         self.assertTrue(self.tab.monitor_panel.btn_export.isEnabled())
@@ -211,6 +215,54 @@ class CanDiagnosticExecutionTests(unittest.TestCase):
         self.wait(lambda:self.outcome()=='Failed')
         self.assertEqual(panel.table.item(0,panel.COL_RECEIVE).text(),'7F 2E 33')
         self.assertEqual(len(self.bus.sent),1)
+
+    def test_run_button_executes_sequence_top_to_bottom(self):
+        panel = self.tab.sequence_table
+        test_case = DiagnosticTestCase(
+            1, "MULTI", "", True, [
+                DiagnosticStep(1, "S1", "BCM", "22 F1 90", delay_ms=50, expected_response="62 F1 90"),
+                DiagnosticStep(2, "S2", "BCM", "22 F1 90", delay_ms=50, expected_response="62 F1 90"),
+            ]
+        )
+        self.tab._on_sequence_selected(test_case)
+        panel.vehicle_selector.fn_set_vehicle("BENCH")
+
+        self.assertTrue(panel.btn_run.isEnabled())
+        self.assertFalse(panel.btn_stop.isEnabled())
+
+        panel.btn_run.click()
+
+        # While running, btn_run is disabled, btn_stop is enabled
+        self.wait(lambda: not self.tab.diagnostic_controller._sequence_running)
+
+        self.assertEqual(panel.table.item(0, panel.COL_RESULT).text(), "Passed")
+        self.assertEqual(panel.table.item(1, panel.COL_RESULT).text(), "Passed")
+        self.assertTrue(panel.btn_run.isEnabled())
+        self.assertFalse(panel.btn_stop.isEnabled())
+
+    def test_stop_button_halts_running_sequence(self):
+        panel = self.tab.sequence_table
+        test_case = DiagnosticTestCase(
+            1, "MULTI_STOP", "", True, [
+                DiagnosticStep(1, "S1", "BCM", "22 F1 90", delay_ms=500, expected_response="62 F1 90"),
+                DiagnosticStep(2, "S2", "BCM", "22 F1 90", delay_ms=500, expected_response="62 F1 90"),
+                DiagnosticStep(3, "S3", "BCM", "22 F1 90", delay_ms=500, expected_response="62 F1 90"),
+            ]
+        )
+        self.tab._on_sequence_selected(test_case)
+        panel.vehicle_selector.fn_set_vehicle("BENCH")
+
+        panel.btn_run.click()
+        self.assertTrue(self.tab.diagnostic_controller._sequence_running)
+
+        # Stop while running
+        panel.btn_stop.click()
+
+        self.assertFalse(self.tab.diagnostic_controller._sequence_running)
+        self.assertFalse(panel.btn_stop.isEnabled())
+        self.assertTrue(panel.btn_run.isEnabled())
+        # Step 3 should not have run
+        self.assertEqual(panel.table.item(2, panel.COL_RESULT).text(), "—")
 
 
 if __name__ == '__main__':

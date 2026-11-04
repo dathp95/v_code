@@ -155,3 +155,5 @@ class AutoSecurityController(QObject):
                 owner.panel.invalidate_step_result(request.step_id)
             owner.panel.set_request_busy(self._job is not None)
             owner._state()
+            if getattr(owner, "_sequence_running", False):
+                owner._on_step_finished(request.step_id)
