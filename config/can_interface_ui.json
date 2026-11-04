@@ -6,7 +6,7 @@
         "C:\\REDO\\CODINGTOOL\\config\\diagnostic_sequences\\203.BCM&BasicDID.json",
         "C:\\REDO\\CODINGTOOL\\config\\diagnostic_sequences\\test 3.json"
     ],
-    "selected_id": "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\400.3IN1&S.json",
+    "selected_id": "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0002.READ VIN.json",
     "vehicles": {
         "C:\\REDO\\CODINGTOOL\\config\\diagnostic_sequences\\0002_READ_VIN copy.json": "LIMO",
         "C:\\VF5NP\\SW\\Version 3.2 CBT\\Version 3.2 CBT\\SeqList\\0001.READ&CDS.diag": "VF5NP",
@@ -43,7 +43,8 @@
         "F:\\CODINGTOOL\\config\\diagnostic_sequences\\900.EPS&S.json": "VF5NP",
         "F:\\CODINGTOOL\\config\\diagnostic_sequences\\800.EDS&S.json": "VF5NP",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\200.BCM&S.json": "VF5NP",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\300.BMS&S.json": "VF5NP"
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\300.BMS&S.json": "VF5NP",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0002.READ VIN.json": "VF5NP"
     },
     "sources": [
         "C:\\REDO\\CODINGTOOL\\config\\diagnostic_sequences\\0002_READ_VIN.json",
@@ -155,6 +156,7 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\910.ESC&S.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9115.ESC&RepairBleed&S.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9300.MHU&S.json",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9601.USSF&S.json"
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9601.USSF&S.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0003.DVT&V1.json"
     ]
 }
