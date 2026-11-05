@@ -46,6 +46,7 @@ class CanWorkspaceController(QObject):
         sidebar.import_requested.connect(self.import_sequence)
         panel.import_sequence_requested.connect(self.import_sequence)
         panel.export_sequence_requested.connect(self.export_sequence)
+        panel.reverted_to_saved.connect(self._reverted_to_saved)
         sidebar.import_folder_requested.connect(
             self.import_diag_folder
         )
@@ -878,6 +879,15 @@ class CanWorkspaceController(QObject):
             "Sequence saved successfully."
         )
         return result
+
+    def _reverted_to_saved(self):
+        """UNDO brought the table back to the saved content: drop every "modified" mark."""
+        if self.document_id is not None:
+            self._session_drafts.pop(self.document_id, None)
+            self._session_dirty.discard(self.document_id)
+            self.sidebar.set_document_dirty(self.document_id, False)
+        self.panel.mark_saved()
+        self._sync_actions()
 
     def _save_import_settings(self, loop, delay_ms):
         try:

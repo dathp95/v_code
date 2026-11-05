@@ -612,7 +612,7 @@ class CanDiagnosticTableUiTests(unittest.TestCase):
         self.assertEqual(self.visible(panel), [0, 1, 2, 3])
 
     # --- right-click menu on the table -------------------------------------------
-    MENU = ['COPY', 'SAVE', 'DEL', '-', 'CLEAR', 'RUN', '-', 'Insert row down', 'Insert row up', '-',
+    MENU = ['COPY', 'SAVE', 'UNDO', 'DEL', '-', 'CLEAR', 'RUN', '-', 'Insert row down', 'Insert row up', '-',
             'Import sequence', 'Export sequence']
 
     def menu_actions(self, menu):
@@ -775,6 +775,133 @@ class CanDiagnosticTableUiTests(unittest.TestCase):
             tab.workspace_controller._sync_actions()
             self.assertEqual(self.menu_actions(table.build_context_menu(0, table.COL_REQUEST))['SAVE'].isEnabled(),
                              tab.sequence_list.btn_save.isEnabled())
+
+    # --- UNDO in the right-click menu: step back through changes to the table ------
+    def undo(self, panel):
+        action = self.menu_actions(panel.build_context_menu(0, panel.COL_REQUEST))['UNDO']
+        self.assertTrue(action.isEnabled())
+        action.trigger()
+
+    def undo_enabled(self, panel):
+        return self.menu_actions(panel.build_context_menu(0, panel.COL_REQUEST))['UNDO'].isEnabled()
+
+    def snapshot(self, panel):
+        return ([(s.sequence_name, s.ecu, s.request, s.delay_ms, s.repeat, s.comment) for s in panel.fn_current_sequence().steps],
+                tuple(panel.step_ids), panel.checked_step_ids())
+
+    def test_undo_walks_back_through_every_kind_of_change_in_order(self):
+        panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
+        self.assertFalse(self.undo_enabled(panel))  # Nothing has changed yet.
+        states = [self.snapshot(panel)]
+        panel.table.item(0, panel.COL_COMMENT).setText('typed')                       # edit a cell
+        states.append(self.snapshot(panel))
+        panel.table.cellWidget(1, panel.COL_ECU).setCurrentIndex(panel.table.cellWidget(1, panel.COL_ECU).findText('SS'))
+        states.append(self.snapshot(panel))                                           # change an ECU
+        panel.table.selectRow(0)
+        panel.fn_insert_row(0, above=False)                                           # insert a row
+        states.append(self.snapshot(panel))
+        panel.table.selectRow(1)
+        panel.fn_remove_selected_step()                                               # delete a row
+        states.append(self.snapshot(panel))
+        panel.table.item(0, panel.COL_CHECK).setCheckState(Qt.Unchecked)             # a tick is not a document change
+        self.assertEqual(self.snapshot(panel)[:2], states[-1][:2])
+        for expected in reversed(states[:-1]):
+            self.undo(panel)
+            self.assertEqual(self.snapshot(panel)[:2], expected[:2])
+        self.assertFalse(self.undo_enabled(panel))
+        self.assertEqual(panel.table.rowCount(), 3)
+
+    def test_undo_brings_back_deleted_rows_with_their_ids_ticks_and_results(self):
+        panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
+        ids = tuple(panel.step_ids)
+        panel.set_step_result(ids[1], '62 F1 90', 'Passed')
+        panel.table.item(1, panel.COL_CHECK).setCheckState(Qt.Unchecked)
+        panel.table.selectRow(1)
+        panel.fn_remove_selected_step()
+        self.assertEqual(tuple(panel.step_ids), (ids[0], ids[2]))
+        self.undo(panel)
+        self.assertEqual(tuple(panel.step_ids), ids)
+        self.assertEqual(panel._runtime[ids[1]][1], 'Passed')
+        self.assertEqual(panel.table.item(1, panel.COL_RESULT).text(), 'Passed')
+        self.assertNotIn(ids[1], panel.checked_step_ids())  # Its tick comes back as it was.
+        self.assertEqual(panel.table.rowCount(), 3)
+
+    def test_undo_of_an_edit_keeps_results_of_other_rows(self):
+        panel = self.cursor_panel(['BCM', 'BMS'])
+        ids = tuple(panel.step_ids)
+        panel.set_step_result(ids[0], '62 F1 90', 'Passed')
+        panel.set_step_result(ids[1], '62 F1 90', 'Failed')
+        panel.table.item(0, panel.COL_REQUEST).setText('22 F1 91')  # Invalidates only row 1's result.
+        self.assertNotIn(ids[0], panel._runtime)
+        self.undo(panel)
+        self.assertEqual(panel.table.item(0, panel.COL_REQUEST).text(), '22 F1 90')
+        self.assertEqual(panel._runtime[ids[0]][1], 'Passed')  # The result valid for that payload is back.
+        self.assertEqual(panel._runtime[ids[1]][1], 'Failed')
+
+    def test_undo_does_not_record_itself_and_loading_a_sequence_clears_the_history(self):
+        panel = self.cursor_panel(['BCM', 'BMS'])
+        panel.table.item(0, panel.COL_COMMENT).setText('one')
+        panel.table.item(0, panel.COL_COMMENT).setText('two')
+        self.undo(panel)
+        self.undo(panel)
+        self.assertFalse(self.undo_enabled(panel))  # Two changes, two undos, nothing left.
+        panel.table.item(0, panel.COL_COMMENT).setText('again')
+        self.assertTrue(self.undo_enabled(panel))
+        panel.fn_load_sequence(DiagnosticTestCase(1, 'OTHER', '', True, [DiagnosticStep(1, '', 'BCM', '22 F1 90')]))
+        self.assertFalse(self.undo_enabled(panel))
+
+    def test_undo_back_to_the_saved_state_clears_the_modified_mark(self):
+        panel = self.cursor_panel(['BCM', 'BMS'])
+        panel._is_dirty = False
+        reverted, modified = [], []
+        panel.reverted_to_saved.connect(lambda: reverted.append(True))
+        panel.sequence_modified.connect(modified.append)
+        panel.table.item(0, panel.COL_COMMENT).setText('one')
+        panel.table.item(0, panel.COL_COMMENT).setText('two')
+        self.assertTrue(panel.fn_is_dirty())
+        self.undo(panel)
+        self.assertTrue(panel.fn_is_dirty())  # Still different from what was loaded.
+        self.assertEqual(reverted, [])
+        self.undo(panel)
+        self.assertFalse(panel.fn_is_dirty())  # Back to the loaded (saved) content.
+        self.assertEqual(reverted, [True])
+
+    def test_undo_across_a_save_makes_the_document_modified_again(self):
+        panel = self.cursor_panel(['BCM', 'BMS'])
+        panel._is_dirty = False
+        panel.table.item(0, panel.COL_COMMENT).setText('before save')
+        panel.mark_saved()  # What the workspace does after writing the file.
+        panel.table.item(0, panel.COL_COMMENT).setText('after save')
+        self.undo(panel)
+        self.assertEqual(panel.table.item(0, panel.COL_COMMENT).text(), 'before save')
+        self.assertFalse(panel.fn_is_dirty())  # Equal to the saved file.
+        self.undo(panel)
+        self.assertEqual(panel.table.item(0, panel.COL_COMMENT).text(), '')
+        self.assertTrue(panel.fn_is_dirty())  # Older than the saved file.
+
+    def test_undo_in_the_tab_updates_the_save_button_and_title(self):
+        import tempfile
+        from pathlib import Path
+        from gui.tabs.can_interface_tab import CANInterfaceTab
+        from repositories.can_interface_ui_store import CanInterfaceUiStore
+        from tests.gui.test_can_interface_tab import FakeCANService
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
+            tab = CANInterfaceTab(FakeCANService(), ui_store=CanInterfaceUiStore(Path(directory) / 'ui'))
+            self.addCleanup(tab.deleteLater)
+            self.addCleanup(tab.close)
+            table = tab.sequence_table
+            source = Path(directory) / 'seq.json'
+            tab.workspace_controller.repository.fn_save_sequence(
+                DiagnosticTestCase(1, 'seq', '', True, [DiagnosticStep(1, 'row', 'BCM', '22 F1 90')]), source)
+            tab.workspace_controller.open_source(str(source))
+            self.assertFalse(table.fn_is_dirty())
+            table.table.item(0, table.COL_COMMENT).setText('edited')
+            self.assertTrue(tab.sequence_list.btn_save.isEnabled())
+            self.undo(table)
+            self.assertFalse(table.fn_is_dirty())
+            self.assertFalse(tab.sequence_list.btn_save.isEnabled())
+            self.assertFalse(table.title.text().endswith('*'))
+            self.assertFalse(tab.workspace_controller._session_dirty)
 
     # --- Loop / Delay are a remembered preference, not sequence data ----------
     def test_settings_strip_values_never_touch_the_sequence_and_are_announced(self):

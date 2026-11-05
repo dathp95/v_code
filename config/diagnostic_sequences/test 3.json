@@ -11,7 +11,7 @@
         {
             "step": 1,
             "sequence_name": "",
-            "ecu": "BCM",
+            "ecu": "",
             "request": "",
             "delay_ms": 100,
             "repeat": 1,
@@ -21,69 +21,168 @@
         },
         {
             "step": 2,
-            "sequence_name": "",
-            "ecu": "BCM",
-            "request": "",
+            "sequence_name": "ECU Manufacturing Date-62 F18B xx xx xx (3 bytes)",
+            "ecu": "BMS",
+            "request": "22 F1 8B",
             "delay_ms": 100,
             "repeat": 1,
-            "expected_response": "",
+            "expected_response": "62 F1 8B",
             "match": "prefix",
-            "comment": ""
+            "comment": "Year Month Day"
         },
         {
             "step": 3,
-            "sequence_name": "",
-            "ecu": "BCM",
-            "request": "",
+            "sequence_name": "ECU Programming Date-62 F107 xx xx … xx (30 bytes)",
+            "ecu": "BMS",
+            "request": "22 F1 07",
             "delay_ms": 100,
             "repeat": 1,
-            "expected_response": "",
+            "expected_response": "62 F1 07",
             "match": "prefix",
-            "comment": ""
+            "comment": "Year Month Day"
         },
         {
             "step": 4,
-            "sequence_name": "",
-            "ecu": "BCM",
-            "request": "",
+            "sequence_name": "ECU Service Date-62 F10F xx xx xx (3 bytes)",
+            "ecu": "BMS",
+            "request": "22 F1 0F",
             "delay_ms": 100,
             "repeat": 1,
-            "expected_response": "",
+            "expected_response": "62 F1 0F",
             "match": "prefix",
-            "comment": ""
+            "comment": "Year Month Day"
         },
         {
             "step": 5,
-            "sequence_name": "",
-            "ecu": "BCM",
-            "request": "",
+            "sequence_name": "Boot Loader version number-62 F101 xx xx (2 bytes)",
+            "ecu": "BMS",
+            "request": "22 F1 01",
             "delay_ms": 100,
             "repeat": 1,
-            "expected_response": "",
+            "expected_response": "62 F1 01",
             "match": "prefix",
-            "comment": ""
+            "comment": "\"V\"+XX.XX"
         },
         {
             "step": 6,
-            "sequence_name": "",
-            "ecu": "BCM",
-            "request": "",
+            "sequence_name": "ECU Serial Number-62 F18C xx xx … xx (16 bytes)",
+            "ecu": "BMS",
+            "request": "22 F1 8C",
             "delay_ms": 100,
             "repeat": 1,
-            "expected_response": "",
+            "expected_response": "62 F1 8C",
             "match": "prefix",
             "comment": ""
         },
         {
             "step": 7,
-            "sequence_name": "",
-            "ecu": "BCM",
-            "request": "",
+            "sequence_name": "ECU Assembly Check Purchase Part Number-62 F1 03 xx xx ..xx ( 7 bytes)",
+            "ecu": "BMS",
+            "request": "22 F1 03",
             "delay_ms": 100,
             "repeat": 1,
-            "expected_response": "",
+            "expected_response": "62 F1 03",
             "match": "prefix",
-            "comment": ""
+            "comment": "EOL-YES|AFS-YES"
+        },
+        {
+            "step": 8,
+            "sequence_name": "ECU Assembly Check Purchase Part Number Revision-62 F1 43 xx (1 byte)",
+            "ecu": "BMS",
+            "request": "22 F1 43",
+            "delay_ms": 100,
+            "repeat": 1,
+            "expected_response": "62 F1 43",
+            "match": "prefix",
+            "comment": "EOL-YES|AFS-YES"
+        },
+        {
+            "step": 9,
+            "sequence_name": "ECU Assembly Check - HW Part number-62 F1 91 xx xx ..xx ( 7 bytes)",
+            "ecu": "BMS",
+            "request": "22 F1 91",
+            "delay_ms": 100,
+            "repeat": 1,
+            "expected_response": "62 F1 91",
+            "match": "prefix",
+            "comment": "EOL-YES|AFS-YES"
+        },
+        {
+            "step": 10,
+            "sequence_name": "ECU assembly check - HW version number -62 F1 41 xx (1 byte)",
+            "ecu": "BMS",
+            "request": "22 F1 41",
+            "delay_ms": 100,
+            "repeat": 1,
+            "expected_response": "62 F1 41",
+            "match": "prefix",
+            "comment": "EOL-YES|AFS-YES"
+        },
+        {
+            "step": 11,
+            "sequence_name": "ECU Assembly Check - SW part number-62 F1 88 xx xx  .. xx(7 bytes)",
+            "ecu": "BMS",
+            "request": "22 F1 88",
+            "delay_ms": 100,
+            "repeat": 1,
+            "expected_response": "62 F1 88",
+            "match": "prefix",
+            "comment": "EOL-YES|AFS-YES"
+        },
+        {
+            "step": 12,
+            "sequence_name": "ECU Basic Software Part Number-62 F105 xx xx … xx (7 bytes)",
+            "ecu": "BMS",
+            "request": "22 F1 05",
+            "delay_ms": 100,
+            "repeat": 1,
+            "expected_response": "62 F1 05",
+            "match": "prefix",
+            "comment": "EOL-NO|AFS-NO"
+        },
+        {
+            "step": 13,
+            "sequence_name": "ECU Basic Software Revision Level-62 F145 xx (1  byte)",
+            "ecu": "BMS",
+            "request": "22 F1 45",
+            "delay_ms": 100,
+            "repeat": 1,
+            "expected_response": "62 F1 45",
+            "match": "prefix",
+            "comment": "EOL-NO|AFS-NO"
+        },
+        {
+            "step": 14,
+            "sequence_name": "clear all DTC information- Waiting for 5s",
+            "ecu": "BMS",
+            "request": "14 FF FF FF",
+            "delay_ms": 5100,
+            "repeat": 1,
+            "expected_response": "54",
+            "match": "prefix",
+            "comment": "EOL-YES|AFS-NO"
+        },
+        {
+            "step": 15,
+            "sequence_name": "Read all DTC",
+            "ecu": "BMS",
+            "request": "19 02 09",
+            "delay_ms": 100,
+            "repeat": 1,
+            "expected_response": "59 02 09",
+            "match": "prefix",
+            "comment": "EOL-YES|AFS-NO"
+        },
+        {
+            "step": 16,
+            "sequence_name": "End Diagnostic Session",
+            "ecu": "BMS",
+            "request": "10 01",
+            "delay_ms": 100,
+            "repeat": 1,
+            "expected_response": "50 01",
+            "match": "prefix",
+            "comment": "EOL-YES|AFS-NO"
         }
     ]
 }

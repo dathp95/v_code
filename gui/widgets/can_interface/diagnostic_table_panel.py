@@ -1,6 +1,6 @@
 import re
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
 from uuid import uuid4
 
@@ -256,6 +256,17 @@ class HexItemDelegate(QStyledItemDelegate):
 
         model.setData(index, new_text, Qt.EditRole)
 
+
+
+@dataclass
+class _UndoState:
+    """What UNDO needs to put the table back: the document, its row ids, the ticks and the results."""
+
+    test_case: object
+    step_ids: tuple
+    checked: set
+    runtime: dict
+    was_dirty: bool = False  # Was the document modified when this state was current?
 
 
 # The Results column only ever shows Passed, Failed or Timeout; everything else is "no result".
@@ -542,6 +553,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
     export_sequence_requested = Signal()
 
+    reverted_to_saved = Signal()
+
     save_requested = Signal()
 
     load_requested = Signal()
@@ -579,6 +592,12 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         self._save_available = False
 
         self._forced_insert_index = None
+
+        self._undo_stack = []
+
+        self._undo_baseline = None
+
+        self._restoring_undo = False
 
         self._import_undo = []
 
@@ -790,6 +809,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         self.table.currentCellChanged.connect(self._selection_changed)
 
+        self.runtime_changed.connect(self._note_runtime)
+
         self.table.setContextMenuPolicy(Qt.CustomContextMenu)
 
         self.table.customContextMenuRequested.connect(self._show_context_menu)
@@ -847,6 +868,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         self.btn_import_undo.setEnabled(False)
 
+        self._undo_stack.clear()
+
         self._runtime.clear()
 
         self.import_diagnostics = ()
@@ -854,6 +877,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         super().fn_load_sequence(test_case)
 
         self._refresh_check_all()
+
+        self._undo_baseline = self._capture_undo_state()
 
         self._step_signatures = self._runtime_signatures()
 
@@ -874,6 +899,12 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         self.document_changed.emit()
 
     def mark_saved(self):
+
+        # Anything older than the file just written now differs from it.
+
+        for entry in self._undo_stack:
+
+            entry.was_dirty = True
 
         self._is_dirty = False
 
@@ -1061,12 +1092,35 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
                 self._checked.discard(key)
             self.selected_rows_changed.emit(self.checked_step_ids())
             self._refresh_check_all()
+            self._note_ticks()
             return
         super()._on_item_changed(item)
         if row < len(self.step_ids):
             self._set_button_state(row)
 
+    def _capture_undo_state(self):
+
+        case = self._test_case
+
+        if case is None:
+
+            return None
+
+        return _UndoState(replace(case, steps=list(case.steps)), tuple(self.step_ids), set(self._checked), dict(self._runtime))
+
     def _mark_dirty(self):
+
+        # The state before this change is the baseline taken after the previous one.
+
+        if not self._restoring_undo and self._undo_baseline is not None:
+
+            self._undo_baseline.was_dirty = self._is_dirty
+
+            self._undo_stack.append(self._undo_baseline)
+
+            self._undo_baseline = None
+
+            del self._undo_stack[:-100]
 
         current = self._runtime_signatures()
 
@@ -1079,6 +1133,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         self._step_signatures = current
 
         super()._mark_dirty()
+
+        self._undo_baseline = self._capture_undo_state()
 
     @staticmethod
     def _canonical_hex(value):
@@ -1140,6 +1196,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
                 self._render_runtime(row)
 
         self._apply_filter()
+
+        self._note_runtime()
 
     def invalidate_step_result(self, key):
 
@@ -1360,7 +1418,21 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         self._refresh_check_all()
 
+        self._note_ticks()
+
         self.selected_rows_changed.emit(self.checked_step_ids())
+
+    def _note_runtime(self):
+
+        if self._undo_baseline is not None:
+
+            self._undo_baseline.runtime = dict(self._runtime)
+
+    def _note_ticks(self):
+
+        if self._undo_baseline is not None:
+
+            self._undo_baseline.checked = set(self._checked)
 
     def checked_step_ids(self):
 
@@ -1883,6 +1955,83 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         return any(payload or result_label(outcome) != NO_RESULT for payload, outcome, _detail in self._runtime.values())
 
+    def undo_table_change(self):
+
+        """Step back one change to the table (edit, insert, delete, import, ECU change...)."""
+
+        if not self._undo_stack or self._test_case is None:
+
+            return
+
+        entry = self._undo_stack.pop()
+
+        current_signatures = self._runtime_signatures()
+
+        cursor = self.table.currentRow()
+
+        self._test_case = replace(entry.test_case, steps=list(entry.test_case.steps))
+
+        self.step_ids = list(entry.step_ids)
+
+        self._checked = set(entry.checked)
+
+        # Results stay with rows that did not change; a row that comes back (or goes back to its earlier
+        # content) gets the result it had then.
+
+        runtime = {}
+
+        for key, signature in self._runtime_signatures().items():
+
+            if key in self._runtime and current_signatures.get(key) == signature:
+
+                runtime[key] = self._runtime[key]
+
+            elif key in entry.runtime:
+
+                runtime[key] = entry.runtime[key]
+
+        self._runtime = runtime
+
+        self._auto_comments = {key: text for key, text in self._auto_comments.items() if key in runtime}
+
+        self._restoring_undo = True
+
+        try:
+
+            self._reload_steps_into_table()
+
+        finally:
+
+            self._restoring_undo = False
+
+        self._step_signatures = self._runtime_signatures()
+
+        self._refresh_check_all()
+
+        if self.table.rowCount():
+
+            self.table.selectionModel().setCurrentIndex(
+                self.table.model().index(max(0, min(cursor, self.table.rowCount() - 1)), self.COL_STEP),
+                QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows)
+
+        self._undo_baseline = self._capture_undo_state()
+
+        self.runtime_changed.emit()
+
+        if entry.was_dirty:
+
+            self._is_dirty = True
+
+            self.sequence_modified.emit(self._test_case)
+
+        else:
+
+            self._is_dirty = False
+
+            self.reverted_to_saved.emit()
+
+        self._update_run_button_state()
+
     def fn_insert_row(self, row, above):
 
         """+Add Row, but above or below the given row (no row: the start or the end)."""
@@ -1951,6 +2100,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         add("COPY", lambda: QApplication.clipboard().setText(text), text)
 
         add("SAVE", self.save_requested.emit, self._save_available)
+
+        add("UNDO", self.undo_table_change, self._undo_stack)
 
         add("DEL", self.fn_remove_selected_step, self._selected_rows())
 
@@ -2531,6 +2682,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         # refresh the dependent views but leave the document unmodified (no "*", no Save).
 
         self._step_signatures = self._runtime_signatures()
+
+        self._undo_baseline = self._capture_undo_state()
 
         self.document_changed.emit()
 
