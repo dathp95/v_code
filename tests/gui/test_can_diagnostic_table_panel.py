@@ -149,6 +149,67 @@ class CanDiagnosticTableUiTests(unittest.TestCase):
         self.assertEqual(name.toolTip(), '')
         self.assertEqual(name.text(), 'Start Diagnostic Session')
 
+    # --- toolbar height and the row send buttons -------------------------------
+    def test_toolbar_controls_are_taller(self):
+        panel = self.make_panel(1)
+        self.app.processEvents()
+        for widget in (panel.btn_run, panel.btn_export, panel.btn_stop, panel.btn_add, panel.btn_delete,
+                       panel.btn_settings, panel.vehicle_selector.cmb_vehicle):
+            self.assertGreaterEqual(widget.height(), 40, widget.objectName() or type(widget).__name__)
+        self.assertEqual((panel.btn_run.width(), panel.btn_export.width(), panel.btn_stop.width()), (120, 120, 120))
+
+    def send_button_gaps(self, panel, row):
+        """Pixels of cell background around the drawn send button: (left, right, top, bottom)."""
+        self.app.processEvents()
+        table = panel.table
+        image = table.viewport().grab().toImage()
+        x0 = table.columnViewportPosition(panel.COL_SEND)
+        y0 = table.rowViewportPosition(row)
+        width, height = table.columnWidth(panel.COL_SEND), table.rowHeight(row)
+        background = image.pixelColor(x0, y0 + height // 2).name()
+        # The last pixel column / row of a cell is the grid line, not cell background.
+        across = [image.pixelColor(x0 + dx, y0 + height // 2).name() != background for dx in range(width - 1)]
+        down = [image.pixelColor(x0 + width // 2, y0 + dy).name() != background for dy in range(height - 1)]
+        return (across.index(True), across[::-1].index(True), down.index(True), down[::-1].index(True))
+
+    def test_send_button_is_centered_in_its_cell(self):
+        panel = self.cursor_panel(['BCM', 'BMS'])
+        for row in (0, 1):
+            left, right, top, bottom = self.send_button_gaps(panel, row)
+            self.assertLessEqual(abs(left - right), 1, (row, left, right))
+            self.assertLessEqual(abs(top - bottom), 1, (row, top, bottom))
+            self.assertGreaterEqual(min(left, right, top, bottom), 3)  # A real margin on every side.
+        self.assertGreaterEqual(panel.table.columnWidth(panel.COL_SEND), 44)
+
+    def test_a_running_request_does_not_make_every_send_button_flash(self):
+        from PySide6.QtCore import QEvent, QObject
+
+        class Counter(QObject):
+            count = 0
+
+            def eventFilter(self, watched, event):
+                if event.type() == QEvent.EnabledChange:
+                    Counter.count += 1
+                return False
+
+        panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
+        buttons = [panel.table.cellWidget(row, panel.COL_SEND) for row in range(3)]
+        counter = Counter()
+        self.addCleanup(counter.deleteLater)
+        for button in buttons:
+            button.installEventFilter(counter)
+        sent = []
+        panel.row_send_requested.connect(sent.append)
+        panel.set_request_busy(True)
+        self.assertTrue(all(button.isEnabled() for button in buttons))
+        buttons[1].click()  # A click while busy is refused, with an explanation...
+        self.assertEqual(sent, [])
+        self.assertIn('already running', panel.notice.text())
+        panel.set_request_busy(False)
+        buttons[1].click()  # ...and works again afterwards.
+        self.assertEqual(sent, [panel.step_ids[1]])
+        self.assertEqual(Counter.count, 0)  # No button changed state, so none repainted.
+
     # --- Settings: ECU + Import --------------------------------------------
     def select_rows(self, panel, rows):
         from PySide6.QtCore import QItemSelectionModel

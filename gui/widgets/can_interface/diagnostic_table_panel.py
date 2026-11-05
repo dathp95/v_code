@@ -43,6 +43,9 @@ from gui.themes.styles.controls.table_style import fn_table_style
 # Same face and size as the ECU column and the table text (see fn_table_style).
 HEX_FONT_SIZE = 10
 
+# Height of every control in the top toolbar (RUN, EXPORT, STOP, Vehicle, Add Row, Delete, Setting).
+TOOLBAR_HEIGHT = 40
+
 HEX_FONT_FAMILY = "Segoe UI"
 
 
@@ -513,7 +516,10 @@ class _RowButton(ActionButton):
 
         super().fn_refresh_theme()
 
-        self.setStyleSheet(self.styleSheet() + "QPushButton { padding: 0px; }")
+        # The cell widget fills its cell (minus the item padding): a small even margin keeps the button
+        # centered with room to spare. The column must stay wider than the button's 32px minimum.
+
+        self.setStyleSheet(self.styleSheet() + "QPushButton { padding: 0px; margin: 1px 2px; }")
 
 class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
@@ -642,44 +648,46 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         self.notice.hide()
 
-        self.btn_delete = ActionButton("Delete", width=62, height=30)
+        self.btn_delete = ActionButton("Delete", width=62, height=TOOLBAR_HEIGHT)
 
         self.btn_load = ActionButton("Load .diag", width=85, height=30)
 
         self.btn_load.hide()
 
-        self.btn_settings = ActionButton("Setting", width=72, height=30)
+        self.btn_settings = ActionButton("Setting", width=72, height=TOOLBAR_HEIGHT)
 
         self.btn_settings.setCheckable(True)
 
         self.btn_settings.toggled.connect(self.execution_settings.setVisible)
 
         self.btn_add.setText("+Add Row")
-        self.btn_add.setMinimumSize(85, 30)
-        self.btn_add.setMaximumHeight(30)
+        self.btn_add.setMinimumSize(85, TOOLBAR_HEIGHT)
+        self.btn_add.setMaximumHeight(TOOLBAR_HEIGHT)
 
         self.btn_run.setText("RUN")
-        self.btn_run.setFixedSize(120, 30)
+        self.btn_run.setFixedSize(120, TOOLBAR_HEIGHT)
         self.btn_run.setMaximumHeight(30)
         self.btn_run.setEnabled(False)
         self.btn_run.setToolTip("Run the checked steps from top to bottom.")
         self.btn_run.show()
 
         self.btn_export.setText("EXPORT")
-        self.btn_export.setFixedSize(120, 30)
+        self.btn_export.setFixedSize(120, TOOLBAR_HEIGHT)
         self.btn_export.setMaximumHeight(30)
         self.btn_export.setEnabled(True)
         self.btn_export.setToolTip("Export diagnostic sequence to Excel report (.xlsx)")
         self.btn_export.show()
 
         self.btn_stop.setText("STOP")
-        self.btn_stop.setFixedSize(120, 30)
+        self.btn_stop.setFixedSize(120, TOOLBAR_HEIGHT)
         self.btn_stop.setMaximumHeight(30)
         self.btn_stop.setEnabled(False)
         self.btn_stop.setToolTip("Stop sequence execution.")
         self.btn_stop.show()
 
         self.vehicle_selector.setMaximumWidth(210)
+
+        self.vehicle_selector.cmb_vehicle.setMinimumHeight(TOOLBAR_HEIGHT)
 
         self.vehicle_selector.cmb_vehicle.setMinimumContentsLength(6)
 
@@ -771,7 +779,7 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
     def _configure_columns(self):
 
-        for column, width in enumerate((34, 50, 160, 110, 165, 36, 85, 65, 185, 185, 100, 160)):
+        for column, width in enumerate((34, 50, 160, 110, 165, 48, 85, 65, 185, 185, 100, 160)):
 
             self.table.setColumnWidth(column, width)
 
@@ -1134,13 +1142,16 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
                 self.show_notice('Select Vehicle and a configured ECU before sending.'); return
 
-            if not self._request_busy and self._send_available: self.row_send_requested.emit(key)
+            if self._request_busy:
+                self.show_notice('A diagnostic request is already running.'); return
+            if self._send_available: self.row_send_requested.emit(key)
 
     def set_request_busy(self,busy):
 
-        self._request_busy=bool(busy)
+        # Only remembered: the buttons stay as they are. Disabling every ">" while one request runs made them
+        # all flash on each send; a click during a request is refused in _request_step instead.
 
-        for row in range(self.table.rowCount()): self._set_button_state(row)
+        self._request_busy=bool(busy)
 
     def set_send_available(self,available):
 
@@ -1204,8 +1215,6 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
             self._send_available
 
-            and not self._request_busy
-
             and not security
 
             and target_valid
@@ -1237,10 +1246,6 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         elif not target_valid:
 
             tooltip = "Select a configured ECU."
-
-        elif self._request_busy:
-
-            tooltip = "A diagnostic request is running."
 
         elif not self._send_available:
 
