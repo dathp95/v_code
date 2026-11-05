@@ -1972,6 +1972,14 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
                 continue
 
+            # The original CAN ids only translate an imported name (e.g. a CBT "IVC_SGC") into a
+            # V-CODE ECU. A name that already is an ECU of this Vehicle is the user's choice
+            # (combo box / Import) and must survive Save and restart.
+
+            if self._resolved_ecu(step.ecu):
+
+                continue
+
             mapped_name = find_ecu_by_can_ids(
 
                 self._current_vehicle,

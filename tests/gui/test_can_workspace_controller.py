@@ -123,6 +123,58 @@ class CanWorkspaceControllerTests(unittest.TestCase):
             self.assertTrue(panel.fn_is_dirty())
             self.assertTrue(sidebar.btn_save.isEnabled())
 
+    # --- an ECU chosen by the user must survive Save + restart ---------------
+    def write_sequence(self, root, ecu):
+        import json
+        step={'step':1,'sequence_name':'Read VIN','ecu':ecu,'request':'22 F1 90','delay_ms':100,'repeat':1,
+              'expected_response':'62 F1 90','match':'prefix','comment':'',
+              'source_request_id':0x681,'source_response_id':0x601}  # Original CBT addressing: BCM.
+        source=root/'seq.json'
+        source.write_text(json.dumps({'schema_version':1,'name':'seq','description':'','enabled':True,
+            'execution':{'loop':1,'command_delay_ms':100},'steps':[step]}),encoding='utf-8')
+        return source
+
+    def session(self, root):
+        repo=CanSequenceRepository(root)
+        store=CanInterfaceUiStore(root/'prefs')
+        sidebar=CanSequenceSidebar(repo,store)
+        vehicle=Vehicle('BENCH',ecus=[ECU('BCM','681','601'),ECU('EPS','682','602')])
+        panel=CanDiagnosticTablePanel(vehicle_service=SimpleNamespace(list_vehicles=lambda:['BENCH'],load_vehicle=lambda _:vehicle))
+        controller=CanWorkspaceController(sidebar,panel,repo,store)
+        for obj in (controller,panel,sidebar): self.addCleanup(obj.deleteLater)
+        panel.vehicle_selector.fn_set_vehicle('BENCH')
+        return controller,panel
+
+    def test_addressing_only_translates_names_that_are_not_ecus_of_the_vehicle(self):
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
+            root=Path(directory)
+            controller,panel=self.session(root)
+            # An imported CBT name is translated through its original CAN ids...
+            controller.open_source(str(self.write_sequence(root,'IVC_BCM')))
+            self.assertEqual(panel.fn_current_sequence().steps[0].ecu,'BCM')
+            # ...but a name that already is an ECU of the Vehicle is the user's choice and is kept.
+            controller.open_source(str(self.write_sequence(root,'EPS')),force=True)
+            self.assertEqual(panel.fn_current_sequence().steps[0].ecu,'EPS')
+            self.assertFalse(panel.fn_is_dirty())
+
+    def test_import_then_save_then_restart_keeps_ecu_loop_and_delay(self):
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
+            root=Path(directory)
+            source=self.write_sequence(root,'IVC_BCM')
+            controller,panel=self.session(root)
+            controller.open_source(str(source))
+            panel.spn_loop.setValue(4)
+            panel.spn_command_delay.setValue(700)
+            panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('EPS'))
+            panel.btn_import_delay.click()
+            self.assertIsNotNone(controller.save_sequence())
+            # "Restart": brand-new objects reading the same files.
+            controller2,panel2=self.session(root)
+            controller2.open_source(str(source))
+            step=panel2.fn_current_sequence().steps[0]
+            self.assertEqual((step.ecu,step.repeat,step.delay_ms),('EPS',4,700))
+            self.assertFalse(panel2.fn_is_dirty())
+
     def test_unsaved_switch_can_be_cancelled(self):
         fixtures=Path(__file__).parents[1]/'fixtures'/'can_interface'
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
