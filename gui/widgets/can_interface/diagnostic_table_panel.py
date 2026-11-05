@@ -14,13 +14,14 @@ from PySide6.QtGui import QColor, QFont, QFontDatabase, QKeySequence, QShortcut
 
 from PySide6.QtWidgets import (
 
-    QApplication, QHBoxLayout, QHeaderView, QSizePolicy, QWidget,
+    QApplication, QHBoxLayout, QHeaderView, QMenu, QSizePolicy, QWidget,
 
     QLineEdit, QStyledItemDelegate, QTableWidget
 
 )
 from gui.themes.theme_manager import ThemeManager
 
+from gui.themes.styles.controls.menu_style import fn_apply_menu_style
 from gui.themes.styles.controls.scrollbar_style import fn_apply_scrollbar_style
 
 from gui.widgets.controls.action_button import ActionButton
@@ -347,6 +348,8 @@ class ReadOnlyHexCell(QLineEdit):
 
         self.setCursorPosition(0)
 
+        self.setContextMenuPolicy(Qt.NoContextMenu)
+
         self._style_signature = None
         self._selected = False
         self._row = 0
@@ -535,6 +538,10 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
     runtime_changed = Signal()
 
+    import_sequence_requested = Signal()
+
+    export_sequence_requested = Signal()
+
     save_requested = Signal()
 
     load_requested = Signal()
@@ -568,6 +575,10 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         self._checked = set()
 
         self._applying_import_settings = False
+
+        self._save_available = False
+
+        self._forced_insert_index = None
 
         self._import_undo = []
 
@@ -778,6 +789,10 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         self.btn_stop.clicked.connect(self.sequence_stop_requested)
 
         self.table.currentCellChanged.connect(self._selection_changed)
+
+        self.table.setContextMenuPolicy(Qt.CustomContextMenu)
+
+        self.table.customContextMenuRequested.connect(self._show_context_menu)
         self.table.itemSelectionChanged.connect(
             self._refresh_receive_selection_colors
         )
@@ -1685,6 +1700,10 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         combo = PrimaryComboBox(minimum_height=28)
 
+        # Right-click on this cell belongs to the table's menu, not to the combo box.
+
+        combo.setContextMenuPolicy(Qt.NoContextMenu)
+
         # Populate only valid, uniquely named ECU definitions.
 
         valid_ecus = [
@@ -1823,6 +1842,147 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         finally:
 
             self._applying_import_settings = False
+
+    # --- right-click menu on the table -----------------------------------------
+
+    def set_save_available(self, available):
+
+        """Kept in step with the sequence list's Save button, so the menu entry behaves the same."""
+
+        self._save_available = bool(available)
+
+    def cell_text(self, row, column):
+
+        """The value of a cell as the user sees it ("" for the send button and for empty placeholders)."""
+
+        steps = self._test_case.steps if self._test_case is not None else ()
+
+        if not 0 <= row < len(steps):
+
+            return ""
+
+        if column == self.COL_ECU:
+
+            return steps[row].ecu
+
+        if column == self.COL_RECEIVE:
+
+            return self._runtime.get(self.step_ids[row], ("", "", ""))[0]
+
+        if column in (self.COL_CHECK, self.COL_SEND):
+
+            return ""
+
+        item = self.table.item(row, column)
+
+        text = item.text() if item is not None else ""
+
+        return "" if text == NO_RESULT else text
+
+    def _has_runtime_results(self):
+
+        return any(payload or result_label(outcome) != NO_RESULT for payload, outcome, _detail in self._runtime.values())
+
+    def fn_insert_row(self, row, above):
+
+        """+Add Row, but above or below the given row (no row: the start or the end)."""
+
+        count = len(self._test_case.steps) if self._test_case is not None else 0
+
+        if 0 <= row < count:
+
+            index = row if above else row + 1
+
+        else:
+
+            index = 0 if above else count
+
+        self._forced_insert_index = index
+
+        try:
+
+            self.fn_add_step_after_selected()
+
+        finally:
+
+            self._forced_insert_index = None
+
+    def _selected_insert_index(self):
+
+        if self._forced_insert_index is not None:
+
+            return self._forced_insert_index
+
+        return super()._selected_insert_index()
+
+    def build_context_menu(self, row, column):
+
+        valid_row = 0 <= row < self.table.rowCount()
+
+        if valid_row:
+
+            # Like any list: a right click selects its row, unless that row is already in the selection.
+
+            if row not in self._selected_rows():
+
+                self.table.selectRow(row)
+
+            self.table.selectionModel().setCurrentIndex(
+                self.table.model().index(row, max(column, 0)), QItemSelectionModel.NoUpdate)
+
+        text = self.cell_text(row, column) if valid_row else ""
+
+        has_sequence = self._test_case is not None
+
+        menu = QMenu(self.table)
+
+        fn_apply_menu_style(menu)
+
+        def add(label, slot, enabled=True):
+
+            action = menu.addAction(label)
+
+            action.setEnabled(bool(enabled))
+
+            action.triggered.connect(lambda _checked=False, call=slot: call())
+
+            return action
+
+        add("COPY", lambda: QApplication.clipboard().setText(text), text)
+
+        add("SAVE", self.save_requested.emit, self._save_available)
+
+        add("DEL", self.fn_remove_selected_step, self._selected_rows())
+
+        menu.addSeparator()
+
+        add("CLEAR", self.reset_runtime_results, self._has_runtime_results())
+
+        add("RUN", self.sequence_run_requested.emit, self.btn_run.isEnabled())
+
+        menu.addSeparator()
+
+        add("Insert row down", lambda: self.fn_insert_row(row, above=False), has_sequence)
+
+        add("Insert row up", lambda: self.fn_insert_row(row, above=True), has_sequence)
+
+        menu.addSeparator()
+
+        add("Import sequence", self.import_sequence_requested.emit)
+
+        add("Export sequence", self.export_sequence_requested.emit, has_sequence)
+
+        return menu
+
+    def _show_context_menu(self, position):
+
+        index = self.table.indexAt(position)
+
+        menu = self.build_context_menu(index.row(), index.column())
+
+        menu.exec(self.table.viewport().mapToGlobal(position))
+
+        menu.deleteLater()
 
     def _refresh_import_ecu_combo(self):
 

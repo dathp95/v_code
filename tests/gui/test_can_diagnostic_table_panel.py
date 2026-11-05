@@ -611,6 +611,171 @@ class CanDiagnosticTableUiTests(unittest.TestCase):
         panel.edt_filter.setText('')
         self.assertEqual(self.visible(panel), [0, 1, 2, 3])
 
+    # --- right-click menu on the table -------------------------------------------
+    MENU = ['COPY', 'SAVE', 'DEL', '-', 'CLEAR', 'RUN', '-', 'Insert row down', 'Insert row up', '-',
+            'Import sequence', 'Export sequence']
+
+    def menu_actions(self, menu):
+        return {action.text(): action for action in menu.actions() if not action.isSeparator()}
+
+    def test_context_menu_has_the_requested_entries_and_separators(self):
+        panel = self.cursor_panel(['BCM', 'BMS'])
+        menu = panel.build_context_menu(0, panel.COL_REQUEST)
+        self.addCleanup(menu.deleteLater)
+        self.assertEqual(['-' if action.isSeparator() else action.text() for action in menu.actions()], self.MENU)
+        self.assertEqual(panel.table.contextMenuPolicy(), Qt.CustomContextMenu)
+        self.assertEqual(panel.table.cellWidget(0, panel.COL_RECEIVE).contextMenuPolicy(), Qt.NoContextMenu)
+
+    def test_right_click_on_cell_widgets_reaches_the_tables_menu(self):
+        from PySide6.QtGui import QContextMenuEvent
+        panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
+        panel.set_step_result(panel.step_ids[1], '62 F1 90 41', 'Passed')
+        panel.table.customContextMenuRequested.disconnect(panel._show_context_menu)  # Never open a real menu here.
+        asked = []
+        panel.table.customContextMenuRequested.connect(
+            lambda position: asked.append(panel.table.indexAt(position).row()))
+        for row, column in ((1, panel.COL_RECEIVE), (2, panel.COL_ECU), (0, panel.COL_SEND)):
+            widget = panel.table.cellWidget(row, column)
+            position = widget.rect().center()
+            QApplication.sendEvent(widget, QContextMenuEvent(QContextMenuEvent.Mouse, position, widget.mapToGlobal(position)))
+            self.assertEqual(asked[-1:], [row], (row, column))
+        self.assertEqual(len(asked), 3)
+
+    def test_copy_puts_the_value_of_the_clicked_cell_on_the_clipboard(self):
+        panel = self.cursor_panel(['BCM', 'BMS'])
+        panel.set_step_result(panel.step_ids[1], '62 F1 90 41', 'Passed')
+        panel.table.item(0, panel.COL_COMMENT).setText('my note')
+        clipboard = QApplication.clipboard()
+        for row, column, expected in ((1, panel.COL_ECU, 'BMS'), (0, panel.COL_REQUEST, '22 F1 90'),
+                                      (1, panel.COL_RECEIVE, '62 F1 90 41'), (0, panel.COL_COMMENT, 'my note'),
+                                      (1, panel.COL_STEP, '2'), (1, panel.COL_RESULT, 'Passed')):
+            clipboard.setText('before')
+            action = self.menu_actions(panel.build_context_menu(row, column))['COPY']
+            self.assertTrue(action.isEnabled(), (row, column))
+            action.trigger()
+            self.assertEqual(clipboard.text(), expected, (row, column))
+        for row, column in ((0, panel.COL_RECEIVE), (0, panel.COL_SEND), (0, panel.COL_SEQUENCE_NAME)):
+            self.assertFalse(self.menu_actions(panel.build_context_menu(row, column))['COPY'].isEnabled(), (row, column))
+
+    def test_right_click_selects_the_row_unless_it_is_already_part_of_the_selection(self):
+        panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
+        self.select_rows(panel, [0, 2])
+        panel.build_context_menu(2, panel.COL_REQUEST)  # Inside the selection: keep it all.
+        self.assertEqual(panel._selected_rows(), [0, 2])
+        self.assertEqual(panel.table.currentRow(), 2)
+        panel.build_context_menu(1, panel.COL_REQUEST)  # Outside: just that row.
+        self.assertEqual(panel._selected_rows(), [1])
+
+    def test_del_removes_the_selected_rows_and_clear_wipes_receive_and_results(self):
+        panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
+        ids = tuple(panel.step_ids)
+        self.select_rows(panel, [0, 2])
+        self.menu_actions(panel.build_context_menu(0, panel.COL_REQUEST))['DEL'].trigger()
+        self.assertEqual(tuple(panel.step_ids), (ids[1],))
+        panel.set_step_result(ids[1], '62 F1 90', 'Passed')
+        clear = self.menu_actions(panel.build_context_menu(0, panel.COL_REQUEST))['CLEAR']
+        self.assertTrue(clear.isEnabled())
+        clear.trigger()
+        self.assertEqual(panel._runtime, {})
+        self.assertEqual((panel.table.item(0, panel.COL_RECEIVE).text(), panel.table.item(0, panel.COL_RESULT).text()),
+                         ('\u2014', '\u2014'))
+        self.assertFalse(self.menu_actions(panel.build_context_menu(0, panel.COL_REQUEST))['CLEAR'].isEnabled())
+
+    def test_run_and_save_do_what_their_buttons_do(self):
+        panel = self.cursor_panel(['BCM', 'BMS'])
+        events = []
+        panel.sequence_run_requested.connect(lambda: events.append('run'))
+        panel.save_requested.connect(lambda: events.append('save'))
+        actions = self.menu_actions(panel.build_context_menu(0, panel.COL_REQUEST))
+        self.assertEqual(actions['RUN'].isEnabled(), panel.btn_run.isEnabled())
+        panel.btn_run.setEnabled(True)
+        panel.set_save_available(False)
+        actions = self.menu_actions(panel.build_context_menu(0, panel.COL_REQUEST))
+        self.assertTrue(actions['RUN'].isEnabled())
+        self.assertFalse(actions['SAVE'].isEnabled())  # Same as the Save button: nothing to save.
+        panel.set_save_available(True)
+        actions = self.menu_actions(panel.build_context_menu(0, panel.COL_REQUEST))
+        actions['RUN'].trigger()
+        actions['SAVE'].trigger()
+        self.assertEqual(events, ['run', 'save'])
+        panel.btn_run.setEnabled(False)
+        self.assertFalse(self.menu_actions(panel.build_context_menu(0, panel.COL_REQUEST))['RUN'].isEnabled())
+
+    def test_insert_row_down_and_up_work_relative_to_the_clicked_row(self):
+        panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
+        for index, name in enumerate(('a', 'b', 'c')):
+            panel.table.item(index, panel.COL_SEQUENCE_NAME).setText(name)
+        ids = tuple(panel.step_ids)
+        panel._is_dirty = False
+        self.menu_actions(panel.build_context_menu(1, panel.COL_REQUEST))['Insert row down'].trigger()
+        self.assertEqual(self.names(panel), ['a', 'b', '', 'c'])
+        self.assertEqual([panel.step_ids[i] for i in (0, 1, 3)], [ids[0], ids[1], ids[2]])
+        self.assertIn(panel.step_ids[2], panel.checked_step_ids())  # Like +Add Row: new rows are ticked...
+        self.assertEqual(panel.fn_current_sequence().steps[2].ecu, 'BMS')  # ...and inherit from the row above.
+        self.assertTrue(panel.fn_is_dirty())
+        self.menu_actions(panel.build_context_menu(0, panel.COL_REQUEST))['Insert row up'].trigger()
+        self.assertEqual(self.names(panel), ['', 'a', 'b', '', 'c'])
+        self.assertEqual([s.step for s in panel.fn_current_sequence().steps], [1, 2, 3, 4, 5])
+        self.assertEqual(len(panel.step_ids), 5)
+        self.assertEqual(panel.table.rowCount(), 5)
+
+    def test_insert_without_a_clicked_row_goes_to_the_end_or_the_start(self):
+        panel = self.cursor_panel(['BCM', 'BMS'])
+        panel.table.item(0, panel.COL_SEQUENCE_NAME).setText('a')
+        panel.table.item(1, panel.COL_SEQUENCE_NAME).setText('b')
+        self.menu_actions(panel.build_context_menu(-1, -1))['Insert row down'].trigger()
+        self.assertEqual(self.names(panel), ['a', 'b', ''])
+        self.menu_actions(panel.build_context_menu(-1, -1))['Insert row up'].trigger()
+        self.assertEqual(self.names(panel), ['', 'a', 'b', ''])
+
+    def test_import_and_export_sequence_reuse_the_existing_actions(self):
+        from unittest.mock import MagicMock, patch
+        from gui.controllers.can_workspace_controller import CanWorkspaceController
+        panel = self.cursor_panel(['BCM'])
+        events = []
+        panel.import_sequence_requested.connect(lambda: events.append('import'))
+        panel.export_sequence_requested.connect(lambda: events.append('export'))
+        actions = self.menu_actions(panel.build_context_menu(0, panel.COL_REQUEST))
+        self.assertTrue(actions['Import sequence'].isEnabled() and actions['Export sequence'].isEnabled())
+        actions['Import sequence'].trigger()
+        actions['Export sequence'].trigger()
+        self.assertEqual(events, ['import', 'export'])
+        # In the real tab they land on the very handlers the sidebar buttons use.
+        import tempfile
+        from pathlib import Path
+        from gui.tabs.can_interface_tab import CANInterfaceTab
+        from repositories.can_interface_ui_store import CanInterfaceUiStore
+        from tests.gui.test_can_interface_tab import FakeCANService
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory, \
+                patch.object(CanWorkspaceController, 'import_sequence', MagicMock()) as imp, \
+                patch.object(CanWorkspaceController, 'export_sequence', MagicMock()) as exp, \
+                patch.object(CanWorkspaceController, 'save_sequence', MagicMock()) as sav:
+            tab = CANInterfaceTab(FakeCANService(), ui_store=CanInterfaceUiStore(Path(directory) / 'ui'))
+            self.addCleanup(tab.deleteLater)
+            self.addCleanup(tab.close)
+            tab.sequence_table.import_sequence_requested.emit()
+            tab.sequence_table.export_sequence_requested.emit()
+            tab.sequence_table.save_requested.emit()
+            imp.assert_called_once()
+            exp.assert_called_once()
+            sav.assert_called()
+
+    def test_save_entry_follows_the_sidebar_save_button_state(self):
+        import tempfile
+        from pathlib import Path
+        from gui.tabs.can_interface_tab import CANInterfaceTab
+        from repositories.can_interface_ui_store import CanInterfaceUiStore
+        from tests.gui.test_can_interface_tab import FakeCANService
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
+            tab = CANInterfaceTab(FakeCANService(), ui_store=CanInterfaceUiStore(Path(directory) / 'ui'))
+            self.addCleanup(tab.deleteLater)
+            self.addCleanup(tab.close)
+            table = tab.sequence_table
+            tab._on_sequence_selected(DiagnosticTestCase(1, 'T', '', True, [DiagnosticStep(1, '', 'BCM', '22 F1 90')]))
+            tab.workspace_controller._sync_actions()
+            self.assertEqual(self.menu_actions(table.build_context_menu(0, table.COL_REQUEST))['SAVE'].isEnabled(),
+                             tab.sequence_list.btn_save.isEnabled())
+
     # --- Loop / Delay are a remembered preference, not sequence data ----------
     def test_settings_strip_values_never_touch_the_sequence_and_are_announced(self):
         panel = self.cursor_panel(['BCM', 'BMS'])

@@ -44,6 +44,8 @@ class CanWorkspaceController(QObject):
         panel.document_changed.connect(self._sync_actions)
         sidebar.add_requested.connect(self.add_sequence)
         sidebar.import_requested.connect(self.import_sequence)
+        panel.import_sequence_requested.connect(self.import_sequence)
+        panel.export_sequence_requested.connect(self.export_sequence)
         sidebar.import_folder_requested.connect(
             self.import_diag_folder
         )
@@ -469,8 +471,9 @@ class CanWorkspaceController(QObject):
 
     def _sync_actions(self):
         case = self.panel.fn_current_sequence()
-        self.sidebar.set_document_actions(case is not None,
-            self.panel.fn_is_dirty() or self.source is None or self.source.suffix.lower() == '.diag')
+        save_enabled = self.panel.fn_is_dirty() or self.source is None or self.source.suffix.lower() == '.diag'
+        self.sidebar.set_document_actions(case is not None, save_enabled)
+        self.panel.set_save_available(case is not None and save_enabled)
 
     def _release_current(self):
         if self.document_id in self.sidebar._drafts:
