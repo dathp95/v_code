@@ -1,49 +1,95 @@
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QGridLayout, QSizePolicy, QVBoxLayout, QWidget
-from gui.widgets.controls.primary_label import PrimaryLabel
-from gui.widgets.controls.action_button import ActionButton
 from html import escape
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QFrame, QGridLayout, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
+
+from gui.themes.styles.controls.label_style import fn_label_style
+from gui.themes.styles.controls.scrollbar_style import fn_apply_scrollbar_style
+from gui.themes.theme_manager import ThemeManager
+from gui.widgets.controls.action_button import ActionButton
+from gui.widgets.controls.primary_label import PrimaryLabel
+
+# (key, caption), top to bottom.
+FIELDS = (
+    ("Step", "Step"),
+    ("Result", "Result"),
+    ("Name", "Name"),
+    ("ECU", "ECU"),
+    ("Payload", "Payload (HEX)"),
+    ("Delay", "Delay (ms)"),
+    ("Repeat", "Repeat (times)"),
+    ("Expected", "Expected Response (HEX)"),
+    ("Receive", "Receive Message (HEX)"),
+    ("Bytes", "Number Byte"),
+    ("Comment", "Comment"),
+)
+
+# Result text color tokens in the theme (colors.py).
+RESULT_TEXT_TOKENS = {
+    "Passed": "RESULT_PASSED_TEXT",
+    "Failed": "RESULT_FAILED_TEXT",
+    "Timeout": "RESULT_TIMEOUT_TEXT",
+}
+
+NOTHING = "—"
 
 
 class CurrentTestCasePanel(QWidget):
+    """Details of the selected row, one field per line; the list scrolls when it is too long."""
+
     def __init__(self):
         super().__init__()
+        self._result = ""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.title = PrimaryLabel("Current Test Case")
         self.empty = PrimaryLabel("Select a diagnostic row.")
         layout.addWidget(self.title)
         layout.addWidget(self.empty)
+
         self.fields = QWidget()
         grid = QGridLayout(self.fields)
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setHorizontalSpacing(6)
+        grid.setContentsMargins(0, 0, 8, 0)
+        grid.setHorizontalSpacing(10)
         grid.setVerticalSpacing(4)
         self.labels, self.values = {}, {}
-        positions = {"Step": (0, 0, 1), "ECU": (0, 2, 1), "Payload": (1, 0, 3),
-                     "Expected": (2, 0, 3), "Delay": (3, 0, 1), "Repeat": (3, 2, 1)}
-        for name, (row, column, span) in positions.items():
-            label = PrimaryLabel(name)
-            value = PrimaryLabel("—")
+        for row, (key, caption) in enumerate(FIELDS):
+            label = PrimaryLabel(caption)
+            value = PrimaryLabel(NOTHING)
             value.setTextFormat(Qt.PlainText)
+            value.setWordWrap(True)
             value.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.TextSelectableByKeyboard)
             value.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
             value.setMinimumWidth(40)
-            grid.addWidget(label, row, column)
-            grid.addWidget(value, row, column + 1, 1, span)
-            self.labels[name], self.values[name] = label, value
+            grid.addWidget(label, row, 0, Qt.AlignTop)
+            grid.addWidget(value, row, 1)
+            self.labels[key], self.values[key] = label, value
         grid.setColumnStretch(1, 1)
-        grid.setColumnStretch(3, 1)
-        layout.addWidget(self.fields)
+        grid.setRowStretch(len(FIELDS), 1)
+
+        self.scroll = QScrollArea()
+        self.scroll.setWidget(self.fields)
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        self.scroll.viewport().setAutoFillBackground(False)
+        self.fields.setAutoFillBackground(False)
+        layout.addWidget(self.scroll, 1)
+
+        # Kept for the DLL controller (it still writes its status here) but no longer shown.
         self.dll_status = PrimaryLabel("DLL: select a diagnostic row and Vehicle.")
         self.dll_status.setTextFormat(Qt.PlainText)
         self.dll_status.setWordWrap(True)
         self.dll_status.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.dll_status.setVisible(False)
         layout.addWidget(self.dll_status)
+
         self.security_status = PrimaryLabel('Idle; 27 02 disabled: DLL ABI/offline verification pending.')
         self.security_status.setTextFormat(Qt.PlainText)
         self.security_status.setWordWrap(True)
         self.security_status.setAccessibleName('SecurityAccess session status')
+        self.security_status.setVisible(False)
         layout.addWidget(self.security_status)
         self.key_result = PrimaryLabel('27 02: —')
         self.key_result.setTextFormat(Qt.PlainText)
@@ -57,20 +103,48 @@ class CurrentTestCasePanel(QWidget):
         self.btn_unlock_l1.setToolTip('Request a seed with 27 01 first; a verified provider is required.')
         self.btn_unlock_l1.setVisible(False)
         layout.addWidget(self.btn_unlock_l1, 0, Qt.AlignLeft)
-        layout.addStretch(1)
+        fn_apply_scrollbar_style(self.scroll)
         self.display_step()
 
-    def display_step(self, step=None, total=0):
+    def display_step(self, step=None, total=0, *, result="", receive="", ecu_address=()):
+        """Show one row. `result` is the raw outcome ("" = none yet), `ecu_address` is (request, response)."""
         self.empty.setVisible(step is None)
-        self.fields.setVisible(step is not None)
+        self.scroll.setVisible(step is not None)
         if step is None:
-            for value in self.values.values(): value.setText("—")
+            for value in self.values.values():
+                value.setText(NOTHING)
+            self._set_result("")
             return
-        values = dict(Step=f"{step.step} / {total}", ECU=step.ecu, Payload=step.request,
-                      Expected=step.expected_response or "—", Delay="—" if step.delay_ms is None else f"{step.delay_ms} ms", Repeat=str(step.repeat))
-        for name, text in values.items():
-            self.values[name].setText(text)
-            self.values[name].setToolTip(escape(text))
+        ecu = " - ".join((step.ecu, *(f"{name} {address}" for name, address in zip(("Req", "Resp"), ecu_address))))
+        shown = dict(
+            Step=f"{step.step} / {total}",
+            Name=step.sequence_name,
+            ECU=ecu,
+            Payload=step.request,
+            Delay="" if step.delay_ms is None else str(step.delay_ms),
+            Repeat=str(step.repeat),
+            Expected=step.expected_response,
+            Receive=receive,
+            Bytes=str(len(receive.split())) if receive.split() else "",
+            Comment=step.comment,
+        )
+        for key, text in shown.items():
+            self.values[key].setText(text or NOTHING)
+            self.values[key].setToolTip(escape(text) if text else "")
+        self._set_result(result)
+
+    def _set_result(self, outcome):
+        self._result = outcome if outcome in RESULT_TEXT_TOKENS else ""
+        self.values["Result"].setText(self._result.upper() or NOTHING)
+        self._style_result()
+
+    def _style_result(self):
+        value = self.values["Result"]
+        style = fn_label_style()
+        token = RESULT_TEXT_TOKENS.get(self._result)
+        if token:
+            style += f"QLabel {{ color: {getattr(ThemeManager.fn_colors(), token)}; font-weight: bold; }}"
+        value.setStyleSheet(style)
 
     def fn_refresh_theme(self):
         self.title.fn_refresh_theme()
@@ -79,5 +153,7 @@ class CurrentTestCasePanel(QWidget):
         self.security_status.fn_refresh_theme()
         self.key_result.fn_refresh_theme()
         self.btn_unlock_l1.fn_refresh_theme()
+        fn_apply_scrollbar_style(self.scroll)
         for widget in (*self.labels.values(), *self.values.values()):
             widget.fn_refresh_theme()
+        self._style_result()

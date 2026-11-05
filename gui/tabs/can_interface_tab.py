@@ -75,6 +75,7 @@ class CANInterfaceTab(QWidget):
                                                         self.sequence_table.fn_current_vehicle,self)
         self.sequence_table.row_selected.connect(self._update_current_step)
         self.sequence_table.sequence_modified.connect(self._update_current_step)
+        self.sequence_table.runtime_changed.connect(self._update_current_step)
         self.dll_resource_controller = CanDllResourceController(
             self.sequence_table, self.session_panel.current_test_case, self)
         self.workspace_controller.restore()
@@ -84,8 +85,12 @@ class CANInterfaceTab(QWidget):
         self.sequence_table.fn_load_sequence(test_case)
 
     def _update_current_step(self, *_):
-        key = self.sequence_table.selected_step_id()
-        self.session_panel.current_test_case.display_step(self.sequence_table.step_for_id(key), len(self.sequence_table.step_ids))
+        table = self.sequence_table
+        key = table.selected_step_id()
+        result, receive = table.runtime_for_id(key)
+        self.session_panel.current_test_case.display_step(
+            table.step_for_id(key), len(table.step_ids),
+            result=result, receive=receive, ecu_address=table.ecu_address_for_id(key))
 
     def refresh_can_setup(self):
         self.connection_controller.refresh_can_setup()

@@ -36,6 +36,7 @@ from gui.widgets.can_interface.check_all_header import CheckAllHeader
 from gui.widgets.can_interface.panel_theme import apply_panel_theme
 
 from services.can.diag_ecu_mapper import find_ecu_by_can_ids
+from services.can.ecu_diagnostic_resolver import parse_can_id
 
 from gui.themes.styles.controls.lineedit_style import fn_lineedit_style
 from gui.themes.styles.controls.table_style import fn_table_style
@@ -530,6 +531,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
     selected_rows_changed = Signal(tuple)
 
     import_settings_changed = Signal(int, int)
+
+    runtime_changed = Signal()
 
     save_requested = Signal()
 
@@ -1108,6 +1111,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
                 self._set_button_state(row)
 
+        self.runtime_changed.emit()
+
     def _request_step(self, key):
 
         if key in self.step_ids:
@@ -1325,6 +1330,36 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         self.row_selected.emit(self.selected_step_id())
 
+    def runtime_for_id(self, key):
+
+        """(Passed / Failed / Timeout or "", received payload or "") of a row: what the table shows."""
+
+        payload, outcome, _detail = self._runtime.get(key, ("", "", ""))
+
+        label = result_label(outcome)
+
+        return ("" if label == NO_RESULT else label), payload
+
+    def ecu_address_for_id(self, key):
+
+        """(request id, response id) of the row's ECU on the selected Vehicle, or () when unknown."""
+
+        step = self.step_for_id(key)
+
+        if step is None or not self._resolved_ecu(step.ecu):
+
+            return ()
+
+        ecu = next(item for item in self._available_ecus if item.name == step.ecu)
+
+        try:
+
+            return tuple(f"0x{parse_can_id(value):03X}" for value in (ecu.request_id, ecu.response_id))
+
+        except (ValueError, TypeError):
+
+            return ()
+
     def step_for_id(self, key):
 
         if key not in self.step_ids:
@@ -1362,6 +1397,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         with QSignalBlocker(self.table):
 
             self._render_runtime(self.step_ids.index(key))
+
+        self.runtime_changed.emit()
 
         return True
 
@@ -1422,6 +1459,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
             for row in range(self.table.rowCount()):
 
                 self._render_runtime(row)
+
+        self.runtime_changed.emit()
 
     def copy_current_cell(self):
         focus = QApplication.focusWidget()
