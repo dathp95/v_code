@@ -1618,47 +1618,53 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         previous = combo.currentData()
 
+        names = [
+
+            ecu.name
+
+            for ecu in self._available_ecus
+
+            if self._current_vehicle is not None and self._resolved_ecu(ecu.name)
+
+        ]
+
         with QSignalBlocker(combo):
 
             combo.clear()
 
-            if self._current_vehicle is None:
+            for name in names:
 
-                # Nothing to list without a Vehicle: say so instead of showing an empty list.
+                combo.addItem(name, name)
 
-                combo.addItem("Select Vehicle first", None)
+            if names:
 
-                combo.setEnabled(False)
+                combo.setCurrentIndex(max(combo.findData(previous), 0))
 
             else:
 
-                combo.addItem("Keep current", None)
+                # Without a Vehicle (or ECUs) there is nothing to import: say why, never show an empty list.
 
-                for ecu in self._available_ecus:
+                combo.addItem("Select Vehicle first" if self._current_vehicle is None else "No ECU available", None)
 
-                    if self._resolved_ecu(ecu.name):
+        combo.setEnabled(bool(names))
 
-                        combo.addItem(ecu.name, ecu.name)
-
-                combo.setCurrentIndex(max(combo.findData(previous), 0) if previous else 0)
-
-                combo.setEnabled(True)
+        self.btn_import_delay.setEnabled(bool(names))
 
         fn_apply_scrollbar_style(combo.view())
 
     def fn_import_execution_values_to_rows(self):
 
-        """Write Loop, Delay and (when chosen) ECU into the selected rows only."""
+        """Write Loop, Delay and ECU into every checked row (the row under the cursor is irrelevant)."""
 
         if self._test_case is None or not self._test_case.steps:
 
             return
 
-        rows = self._selected_rows()
+        rows = [row for row, key in enumerate(self.step_ids) if key in self._checked]
 
         if not rows:
 
-            self.show_notice("Select the rows to import into first.")
+            self.show_notice("Check the rows to import into first.")
 
             return
 
@@ -1670,6 +1676,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
             changes["ecu"] = ecu
 
+        cursor_rows = self._selected_rows()
+
         steps = list(self._test_case.steps)
 
         for row in rows:
@@ -1680,11 +1688,11 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         self._reload_steps_into_table()
 
-        # selectRow() would keep only the last row: re-select every imported row.
+        # Reloading rebuilds the table: put the cursor selection back where it was.
 
         selection = self.table.selectionModel()
 
-        for row in rows:
+        for row in cursor_rows:
 
             selection.select(
                 self.table.model().index(row, self.COL_STEP),
