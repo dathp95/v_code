@@ -322,6 +322,20 @@ class AutoSecurityGuiTests(unittest.TestCase):
         for frames in (captured, self.tab.monitor_panel._buffer):
             self.assertTrue(any(f.direction == 'TX' and f.data[0] >> 4 in (1, 2) for f in frames))
 
+    def test_sequence_with_io_control_2f_rows_runs_and_passes(self):
+        from core.diagnostic_sequence import DiagnosticStep, DiagnosticTestCase
+        self.tab._on_sequence_selected(DiagnosticTestCase(1, 'IO', '', True, [
+            DiagnosticStep(1, 'Session', 'BCM', '10 03', expected_response='50 03'),
+            DiagnosticStep(2, 'Screen', 'BCM', '2F F0 AC 03 00', expected_response='6F F0 AC 03 00'),
+            DiagnosticStep(3, '', 'BCM', '2F F0 AC 03 01', expected_response='6F F0 AC 03 01')]))
+        self.panel.vehicle_selector.fn_set_vehicle('BENCH')
+        self.panel.btn_run.click()
+        self.wait(lambda: not self.tab.diagnostic_controller._sequence_running
+                  and self.outcome(2) not in ('Running', '\u2014'))
+        self.assertEqual([self.outcome(row) for row in range(3)], ['Passed', 'Passed', 'Passed'])
+        self.assertEqual([self.panel.table.item(row, self.panel.COL_RECEIVE).text() for row in (1, 2)],
+                         ['6F F0 AC 03 00', '6F F0 AC 03 01'])
+
     def test_stale_6702_queued_before_workflow_cannot_prove_unlock(self):
         self.extended()
         self.backend._response(b'\x67\x02')

@@ -22,7 +22,8 @@ class DiagnosticOutcome(Enum):
 
 
 SAFE_SERVICES = frozenset((0x19, 0x22, 0x3E))
-CONFIRM_SERVICES = frozenset((0x10, 0x11, 0x14, 0x2E, 0x31, 0x85))
+# 0x2F (InputOutputControlByIdentifier) drives actuators/outputs, so it is state-changing like 0x2E/0x31.
+CONFIRM_SERVICES = frozenset((0x10, 0x11, 0x14, 0x2E, 0x2F, 0x31, 0x85))
 TRUSTED_BENCH_PAYLOADS = frozenset((b'\x10\x01', b'\x10\x03', b'\x14\xff\xff\xff'))
 SECURITY_LEVELS = {
     0x01: {"level": 1, "send_key": 0x02},
@@ -155,7 +156,7 @@ def response_belongs_to_request(request, payload):
         return is_key_submission(request) and payload == bytes([0x67, sent[1]])
     if sent[0] == 0x27 and (not is_security_seed_payload(sent) or len(payload) < 3):
         return False  # 67 xx alone is not a successful seed response.
-    echo_length={0x10:1,0x11:1,0x19:1,0x22:2,0x27:1,0x2E:2,0x31:3,0x3E:1,0x85:1}.get(sent[0],0)
+    echo_length={0x10:1,0x11:1,0x19:1,0x22:2,0x27:1,0x2E:2,0x2F:2,0x31:3,0x3E:1,0x85:1}.get(sent[0],0)
     if len(sent)<1+echo_length or len(payload)<1+echo_length: return False
     echo=bytearray(sent[1:1+echo_length])
     if sent[0] in (0x10,0x11,0x19,0x31,0x3E,0x85) and echo: echo[0]&=0x7F

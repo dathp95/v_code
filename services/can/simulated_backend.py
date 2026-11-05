@@ -99,6 +99,8 @@ class SimulatedCANBackend:
                 self._response(default_resp)
         elif payload[:1] == b'\x2e':
             self._response(b'\x6e' + payload[1:3])
+        elif payload[:1] == b'\x2f':
+            self._response(b'\x6f' + payload[1:])
         else:
             self._response(bytes((0x7f,payload[0],0x11)))
 
