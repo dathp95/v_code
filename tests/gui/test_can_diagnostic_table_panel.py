@@ -232,6 +232,41 @@ class CanDiagnosticTableUiTests(unittest.TestCase):
         self.assertFalse(panel.fn_is_dirty())
         self.assertIn('Check', panel.notice.text())
 
+    # --- Settings strip is a remembered preference, not sequence data -------
+    def test_settings_strip_values_never_touch_the_sequence_and_are_announced(self):
+        panel = self.make_panel(2, ecus=[ECU('BCM', '681', '601'), ECU('BMS', '682', '602')])
+        panel.vehicle_selector.fn_set_vehicle('BENCH')
+        announced = []
+        panel.import_settings_changed.connect(lambda *values: announced.append(values))
+        before = panel.fn_current_sequence().execution
+        panel._is_dirty = False
+        panel.spn_loop.setValue(6)
+        panel.spn_command_delay.setValue(800)
+        panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('BMS'))
+        self.assertEqual(announced, [(6, 100, ''), (6, 800, ''), (6, 800, 'BMS')])
+        self.assertEqual(panel.fn_current_sequence().execution, before)
+        self.assertFalse(panel.fn_is_dirty())  # Adjusting the strip never enables Save.
+        panel.fn_load_sequence(DiagnosticTestCase(1, 'OTHER', '', True, [DiagnosticStep(1, '', 'TEST', '22 F1 90')]))
+        panel.fn_load_sequence(None)
+        self.assertEqual((panel.spn_loop.value(), panel.spn_command_delay.value()), (6, 800))
+        self.assertEqual(panel.cmb_import_ecu.currentText(), 'BMS')
+
+    def test_apply_import_settings_restores_values_and_the_ecu_once_the_vehicle_is_known(self):
+        panel = self.make_panel(1, ecus=[ECU('BCM', '681', '601'), ECU('BMS', '682', '602')])
+        announced = []
+        panel.import_settings_changed.connect(lambda *values: announced.append(values))
+        panel.apply_import_settings(loop=6, delay_ms=800, ecu='BMS')
+        self.assertEqual((panel.spn_loop.value(), panel.spn_command_delay.value()), (6, 800))
+        self.assertFalse(panel.cmb_import_ecu.isEnabled())
+        panel.vehicle_selector.fn_set_vehicle('BENCH')
+        self.assertEqual(panel.cmb_import_ecu.currentText(), 'BMS')
+        panel.fn_set_vehicle(None)  # The remembered ECU survives a Vehicle without it...
+        panel.vehicle_selector.fn_set_vehicle('BENCH')
+        self.assertEqual(panel.cmb_import_ecu.currentText(), 'BMS')
+        self.assertEqual(announced, [])  # Restoring is not a user change, so nothing is re-saved.
+        panel.apply_import_settings(ecu='NOT_AN_ECU')  # ...and an unknown name falls back to the first ECU.
+        self.assertEqual(panel.cmb_import_ecu.currentText(), 'BCM')
+
     # --- Results column ----------------------------------------------------
     def test_theme_owns_the_result_and_negative_response_colors(self):
         from dataclasses import fields

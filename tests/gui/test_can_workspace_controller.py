@@ -175,6 +175,38 @@ class CanWorkspaceControllerTests(unittest.TestCase):
             self.assertEqual((step.ecu,step.repeat,step.delay_ms),('EPS',4,700))
             self.assertFalse(panel2.fn_is_dirty())
 
+    # --- Loop / Delay / ECU of the Settings strip survive a restart -----------
+    def test_import_settings_survive_a_restart_and_do_not_depend_on_the_sequence(self):
+        import json
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
+            root=Path(directory)
+            source=self.write_sequence(root,'BCM')
+            controller,panel=self.session(root)
+            controller.open_source(str(source))
+            panel.spn_loop.setValue(6)
+            panel.spn_command_delay.setValue(800)
+            panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('EPS'))
+            self.assertFalse(panel.fn_is_dirty())
+            saved=json.loads((root/'prefs').read_text(encoding='utf-8'))
+            self.assertEqual(saved['import_settings'],{'loop':6,'delay_ms':800,'ecu':'EPS'})
+            self.assertIn('selected_id',saved)  # The other preferences are kept next to it.
+            # "Restart": brand-new objects reading the same preference file.
+            controller2,panel2=self.session(root)
+            self.assertEqual((panel2.spn_loop.value(),panel2.spn_command_delay.value()),(6,800))
+            self.assertEqual(panel2.cmb_import_ecu.currentText(),'EPS')
+            controller2.open_source(str(source))  # The sequence file says loop 1 / delay 100: irrelevant.
+            self.assertEqual((panel2.spn_loop.value(),panel2.spn_command_delay.value()),(6,800))
+            self.assertFalse(panel2.fn_is_dirty())
+
+    def test_invalid_saved_import_settings_fall_back_to_defaults(self):
+        import json
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
+            root=Path(directory)
+            for bad in ({'loop':0,'delay_ms':-5,'ecu':7},{'loop':'6','delay_ms':True},'junk',None):
+                (root/'prefs').write_text(json.dumps({'version':1,'import_settings':bad}),encoding='utf-8')
+                controller,panel=self.session(root)
+                self.assertEqual((panel.spn_loop.value(),panel.spn_command_delay.value()),(1,100),bad)
+
     def test_unsaved_switch_can_be_cancelled(self):
         fixtures=Path(__file__).parents[1]/'fixtures'/'can_interface'
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:

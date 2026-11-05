@@ -522,6 +522,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
     selected_rows_changed = Signal(tuple)
 
+    import_settings_changed = Signal(int, int, str)
+
     save_requested = Signal()
 
     load_requested = Signal()
@@ -553,6 +555,10 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         self.step_ids = []
 
         self._checked = set()
+
+        self._preferred_import_ecu = ""
+
+        self._applying_import_settings = False
 
         self._runtime = {}
 
@@ -602,6 +608,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         self.execution_layout.insertWidget(import_index + 2, self.cmb_import_ecu)
 
         self._refresh_import_ecu_combo()
+
+        self.cmb_import_ecu.currentIndexChanged.connect(self._on_import_ecu_changed)
 
         self.title = PrimaryLabel("Select a sequence")
 
@@ -1612,11 +1620,67 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
                      if not self._resolved_ecu(step.ecu))
 
+    # The Loop / Delay / ECU strip holds the values Import writes into the checked rows. They are a
+    # remembered preference: they never change, nor depend on, the open sequence.
+
+    def _set_execution_values(self, loop, command_delay_ms):
+
+        return None
+
+    def _on_loop_changed(self, value):
+
+        self._emit_import_settings()
+
+    def _on_command_delay_changed(self, value):
+
+        self._emit_import_settings()
+
+    def _on_import_ecu_changed(self, _index):
+
+        if self._applying_import_settings or not self.cmb_import_ecu.isEnabled():
+
+            return
+
+        self._preferred_import_ecu = self.cmb_import_ecu.currentData() or ""
+
+        self._emit_import_settings()
+
+    def _emit_import_settings(self):
+
+        if not self._applying_import_settings:
+
+            self.import_settings_changed.emit(
+                self.spn_loop.value(), self.spn_command_delay.value(), self._preferred_import_ecu)
+
+    def apply_import_settings(self, loop=None, delay_ms=None, ecu=None):
+
+        """Restore remembered values without announcing them as a user change."""
+
+        self._applying_import_settings = True
+
+        try:
+
+            if loop is not None:
+
+                self.spn_loop.setValue(loop)
+
+            if delay_ms is not None:
+
+                self.spn_command_delay.setValue(delay_ms)
+
+            if ecu is not None:
+
+                self._preferred_import_ecu = ecu
+
+                self._refresh_import_ecu_combo()
+
+        finally:
+
+            self._applying_import_settings = False
+
     def _refresh_import_ecu_combo(self):
 
         combo = self.cmb_import_ecu
-
-        previous = combo.currentData()
 
         names = [
 
@@ -1638,7 +1702,9 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
             if names:
 
-                combo.setCurrentIndex(max(combo.findData(previous), 0))
+                # The remembered ECU wins; an ECU this Vehicle lacks falls back to the first one.
+
+                combo.setCurrentIndex(max(combo.findData(self._preferred_import_ecu), 0))
 
             else:
 

@@ -39,6 +39,8 @@ class CanWorkspaceController(QObject):
         panel.save_requested.connect(self.save_sequence)
         panel.sequence_modified.connect(self._modified)
         panel.vehicle_changed.connect(self._vehicle_changed)
+        panel.import_settings_changed.connect(self._save_import_settings)
+        panel.apply_import_settings(**store.load().import_settings)
         panel.document_changed.connect(self._sync_actions)
         sidebar.add_requested.connect(self.add_sequence)
         sidebar.import_requested.connect(self.import_sequence)
@@ -873,6 +875,12 @@ class CanWorkspaceController(QObject):
             "Sequence saved successfully."
         )
         return result
+
+    def _save_import_settings(self, loop, delay_ms, ecu):
+        try:
+            self.store.save_import_settings(loop, delay_ms, ecu)
+        except OSError as error:
+            self.panel.show_notice(f"Cannot save import settings: {error}")
 
     def _vehicle_changed(self, name):
         if self.source is not None:

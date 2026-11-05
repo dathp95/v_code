@@ -14,6 +14,23 @@ class CanInterfaceUiState:
     selected_id: str = ""
     vehicles: dict[str, str] = field(default_factory=dict)
     sources: tuple[str, ...] = ()
+    # Settings strip (Loop / Delay / ECU used by Import), remembered between runs.
+    import_settings: dict = field(default_factory=dict)
+
+
+def _valid_import_settings(value):
+    """Keep only well-formed entries; anything else silently falls back to the defaults."""
+    if not isinstance(value, dict):
+        return {}
+    cleaned = {}
+    loop, delay_ms, ecu = value.get("loop"), value.get("delay_ms"), value.get("ecu")
+    if type(loop) is int and 1 <= loop <= 9999:
+        cleaned["loop"] = loop
+    if type(delay_ms) is int and 0 <= delay_ms <= 60000:
+        cleaned["delay_ms"] = delay_ms
+    if isinstance(ecu, str):
+        cleaned["ecu"] = ecu
+    return cleaned
 
 
 class CanInterfaceUiStore:
@@ -32,7 +49,8 @@ class CanInterfaceUiStore:
                     or not isinstance(selected, str) or not isinstance(vehicles, dict)
                     or any(not isinstance(k, str) or not isinstance(v, str) for k, v in vehicles.items())):
                 return CanInterfaceUiState()
-            return CanInterfaceUiState(tuple(dict.fromkeys(order)), selected, vehicles, tuple(dict.fromkeys(sources)))
+            return CanInterfaceUiState(tuple(dict.fromkeys(order)), selected, vehicles, tuple(dict.fromkeys(sources)),
+                                       _valid_import_settings(data.get("import_settings")))
         except (OSError, UnicodeError, ValueError):
             return CanInterfaceUiState()
 
@@ -43,7 +61,8 @@ class CanInterfaceUiStore:
             with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=self.path.parent,
                                              prefix=self.path.name, suffix=".tmp", delete=False) as stream:
                 temporary = Path(stream.name)
-                json.dump(dict(version=1, order=state.order, selected_id=state.selected_id, vehicles=state.vehicles, sources=state.sources),
+                json.dump(dict(version=1, order=state.order, selected_id=state.selected_id, vehicles=state.vehicles, sources=state.sources,
+                               import_settings=state.import_settings),
                           stream, indent=4, ensure_ascii=False)
                 stream.write("\n")
             os.replace(temporary, self.path)
@@ -59,6 +78,9 @@ class CanInterfaceUiStore:
         state = self.load()
         sources = tuple(dict.fromkeys((*state.sources, source_id))) if source_id else state.sources
         self._save(replace(state, selected_id=source_id, sources=sources))
+
+    def save_import_settings(self, loop, delay_ms, ecu):
+        self._save(replace(self.load(), import_settings=_valid_import_settings(dict(loop=loop, delay_ms=delay_ms, ecu=ecu))))
 
     def save_vehicle(self, source_id, vehicle_name):
         state = self.load()

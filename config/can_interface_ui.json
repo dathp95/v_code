@@ -133,7 +133,7 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\test 3.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0001.READ&CDS_copy.json"
     ],
-    "selected_id": "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9304.MHU&CDS&1.json",
+    "selected_id": "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0003.DVT&V1.json",
     "vehicles": {
         "C:\\REDO\\CODINGTOOL\\config\\diagnostic_sequences\\0002_READ_VIN copy.json": "LIMO",
         "C:\\VF5NP\\SW\\Version 3.2 CBT\\Version 3.2 CBT\\SeqList\\0001.READ&CDS.diag": "VF5NP",
@@ -178,7 +178,9 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\10.Extend_Session.json": "VF5NP",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\706.BPM&IO&R.json": "VF5NP",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9728.VDKCU&DKinfoUpProvisioning.json": "VF5NP",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0001.READ&CDS_copy.json": "VF5NP"
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0001.READ&CDS_copy.json": "VF5NP",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0001.READ&CDS.json": "VF5NP",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\TEST4.json": "VF5NP"
     },
     "sources": [
         "C:\\REDO\\CODINGTOOL\\config\\diagnostic_sequences\\0002_READ_VIN.json",
@@ -322,6 +324,10 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0001.READ&CDS_copy.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\209.BCM&WriteTPMS.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9302.MHU&WriteVIN&1.json",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9304.MHU&CDS&1.json"
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9304.MHU&CDS&1.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\TEST4.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9603.USSR&BasicDID.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\test 3.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\test 2.json"
     ]
 }
