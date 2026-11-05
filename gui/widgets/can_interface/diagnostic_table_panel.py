@@ -418,7 +418,7 @@ class ReadOnlyHexCell(QLineEdit):
             selection_fg = selected_text
         else:
             background = (
-                colors.PRIMARY
+                colors.TABLE_ROW_SELECTED_BG
                 if selected
                 else (
                     colors.TABLE_ROW
@@ -428,7 +428,7 @@ class ReadOnlyHexCell(QLineEdit):
             )
 
             foreground = (
-                selected_text if selected else colors.TEXT
+                colors.TABLE_ROW_SELECTED_TEXT if selected else colors.TEXT
             )
 
             border = "none"
@@ -448,9 +448,7 @@ class ReadOnlyHexCell(QLineEdit):
         if negative:
             weight = "font-weight: bold;"
 
-            # Red on the blue selected row would be unreadable: keep the row's own text color there.
-            if self._focused or not selected:
-                foreground = colors.NEGATIVE_RESPONSE_TEXT
+            foreground = colors.NEGATIVE_RESPONSE_TEXT
 
         self.setStyleSheet(
             fn_lineedit_style()
@@ -554,6 +552,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
     export_sequence_requested = Signal()
 
     reverted_to_saved = Signal()
+
+    sequence_renamed = Signal()
 
     save_requested = Signal()
 
@@ -909,6 +909,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         self._is_dirty = False
 
         self.title.setText(self._test_case.name if self._test_case else "Select a sequence")
+
+        self.sequence_renamed.emit()
 
     def fn_add_step_after_selected(self):
 
@@ -2744,21 +2746,14 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
             colors = ThemeManager.fn_colors()
 
-            # Match the foreground of selected table rows.
-            selected_text = (
-                colors.WINDOW
-                if ThemeManager.fn_is_dark()
-                else colors.TEXT_INVERT
-            )
-
-            # Reuse the existing V-CODE table style.
-            # Only override selection foreground locally.
+            # Reuse the existing V-CODE table style; only the selected row's colors are this table's own
+            # (named in colors.py: TABLE_ROW_SELECTED_BG / TABLE_ROW_SELECTED_TEXT).
             self.table.setStyleSheet(
                 fn_table_style()
                 + f"""
                 QTableWidget::item:selected {{
-                    background-color: {colors.PRIMARY};
-                    color: {selected_text};
+                    background-color: {colors.TABLE_ROW_SELECTED_BG};
+                    color: {colors.TABLE_ROW_SELECTED_TEXT};
                 }}
                 """
             )

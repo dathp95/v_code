@@ -748,9 +748,6 @@ class CanWorkspaceController(QObject):
             dirty,
         )
 
-        if case.steps:
-            self.panel._select_row(0)
-
         self._sync_actions()
 
         return True

@@ -33,6 +33,8 @@ RESULT_TEXT_TOKENS = {
 
 NOTHING = "—"
 
+NO_SEQUENCE = "Select a sequence"
+
 
 class CurrentTestCasePanel(QWidget):
     """Details of the selected row, one field per line; the list scrolls when it is too long."""
@@ -42,7 +44,9 @@ class CurrentTestCasePanel(QWidget):
         self._result = ""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        self.title = PrimaryLabel("Current Test Case")
+        self.title = PrimaryLabel(NO_SEQUENCE)
+        self.title.setTextFormat(Qt.PlainText)
+        self.title.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self.empty = PrimaryLabel("Select a diagnostic row.")
         layout.addWidget(self.title)
         layout.addWidget(self.empty)
@@ -105,6 +109,11 @@ class CurrentTestCasePanel(QWidget):
         layout.addWidget(self.btn_unlock_l1, 0, Qt.AlignLeft)
         fn_apply_scrollbar_style(self.scroll)
         self.display_step()
+
+    def set_sequence_name(self, name):
+        """The heading is the name of the sequence being edited."""
+        self.title.setText(name or NO_SEQUENCE)
+        self.title.setToolTip(name or "")
 
     def display_step(self, step=None, total=0, *, result="", receive="", ecu_address=()):
         """Show one row. `result` is the raw outcome ("" = none yet), `ecu_address` is (request, response)."""

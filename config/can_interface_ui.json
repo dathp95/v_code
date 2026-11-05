@@ -133,7 +133,7 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\test 3.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0001.READ&CDS_copy.json"
     ],
-    "selected_id": "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0003.DVT&V1.json",
+    "selected_id": "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0001.READ&CDS.json",
     "vehicles": {
         "C:\\REDO\\CODINGTOOL\\config\\diagnostic_sequences\\0002_READ_VIN copy.json": "LIMO",
         "C:\\VF5NP\\SW\\Version 3.2 CBT\\Version 3.2 CBT\\SeqList\\0001.READ&CDS.diag": "VF5NP",
@@ -182,7 +182,9 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0001.READ&CDS.json": "VF5NP",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0003.DVT&V1_copy.json": "VF5NP",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\303.BMS&BasicDID.json": "VF5NP",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\test 3.json": "VF5NP"
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\test 3.json": "VF5NP",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0003.DVT&V1.json": "VF5NP",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0004. RESET ALL.json": "VF3"
     },
     "sources": [
         "C:\\REDO\\CODINGTOOL\\config\\diagnostic_sequences\\0002_READ_VIN.json",
@@ -333,7 +335,10 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9732.VDKCU&sofwarePUBLICKey.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9304.MHU&CDS&ORVM.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0003.DVT&V1_copy.json",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9703.VDKCU&BasicDID.json"
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9703.VDKCU&BasicDID.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\204.BCM&CDS&INDIA.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\210.BCM&FactoryReset.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\302.BMS&WriteVIN&1.json"
     ],
     "import_settings": {
         "loop": 1,

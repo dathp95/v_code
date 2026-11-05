@@ -206,6 +206,16 @@ class CanWorkspaceControllerTests(unittest.TestCase):
                 controller,panel=self.session(root)
                 self.assertEqual((panel.spn_loop.value(),panel.spn_command_delay.value()),(1,100),bad)
 
+    def test_opening_a_sequence_does_not_select_any_row(self):
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
+            root=Path(directory)
+            controller,panel=self.session(root)
+            controller.open_source(str(self.write_sequence(root,'BCM')))
+            self.assertEqual(panel.table.rowCount(),1)
+            self.assertEqual(panel.table.currentRow(),-1)
+            self.assertEqual(panel._selected_rows(),[])
+            self.assertEqual(panel.selected_step_id(),'')
+
     def test_unsaved_switch_can_be_cancelled(self):
         fixtures=Path(__file__).parents[1]/'fixtures'/'can_interface'
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:

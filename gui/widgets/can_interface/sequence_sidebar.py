@@ -599,7 +599,9 @@ class CanSequenceSidebar(DiagnosticSequenceList):
         super().fn_refresh_theme()
         for widget in (self.title, self.edit_search, self.lbl_selected, *self.footer_buttons, self.feedback):
             widget.fn_refresh_theme()
+        colors = ThemeManager.fn_colors()
         self.list_sequences.setStyleSheet(self.list_sequences.styleSheet() +
-            f"QListWidget::drop-indicator {{ background: {ThemeManager.fn_colors().PRIMARY}; height: 2px; }}")
+            f"QListWidget::drop-indicator {{ background: {colors.PRIMARY}; height: 2px; }}"
+            f"QListWidget::item:selected {{ background: {colors.SEQUENCE_SELECTED_BG}; color: {colors.SEQUENCE_SELECTED_TEXT}; }}")
         fn_apply_scrollbar_style(self.list_sequences)
         self.list_sequences.verticalScrollBar().setValue(scroll)

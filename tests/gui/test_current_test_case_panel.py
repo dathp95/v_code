@@ -144,6 +144,30 @@ class CurrentTestCasePanelTests(unittest.TestCase):
                 self.assertEqual(panel.values['Result'].text(), expected, outcome)
             self.assertEqual(panel.values['Bytes'].text(), '4')
 
+    def test_title_shows_the_name_of_the_selected_sequence(self):
+        panel = self.make()
+        self.assertEqual(panel.title.text(), 'Select a sequence')
+        panel.set_sequence_name('0001.READ&CDS')
+        self.assertEqual((panel.title.text(), panel.title.toolTip()), ('0001.READ&CDS', '0001.READ&CDS'))
+        panel.set_sequence_name('')
+        self.assertEqual(panel.title.text(), 'Select a sequence')
+
+    def test_title_follows_the_open_sequence_and_its_rename(self):
+        from dataclasses import replace
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
+            tab = self.make_tab(directory)
+            panel = tab.session_panel.current_test_case
+            self.assertEqual(panel.title.text(), 'Bench')  # No row is selected, yet the sequence is known.
+            tab._on_sequence_selected(DiagnosticTestCase(1, 'Other sequence', '', True,
+                                                         [DiagnosticStep(1, 'x', 'BCM', '10 03')]))
+            self.assertEqual(panel.title.text(), 'Other sequence')
+            table = tab.sequence_table
+            table._test_case = replace(table._test_case, name='Renamed')
+            table.mark_saved()
+            self.assertEqual(panel.title.text(), 'Renamed')
+            tab._on_sequence_selected(None)
+            self.assertEqual(panel.title.text(), 'Select a sequence')
+
     def test_panel_follows_the_selected_row_its_result_and_its_comment_live(self):
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
             tab = self.make_tab(directory)
