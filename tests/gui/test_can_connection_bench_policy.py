@@ -91,7 +91,7 @@ class ConnectionBenchPolicyGuiTests(unittest.TestCase):
             return original(can_id,data)
         with patch.object(self.service,'fn_send_diagnostic_frame',side_effect=revoke_before_tx):
             self.click();self.wait(lambda:not self.tab._connection_task.diagnostic_busy)
-        self.assertEqual(self.outcome(),'Cancelled')
+        self.assertEqual(self.outcome(),'\u2014')
         self.assertEqual(self.bus.sent,[])
         task=self.tab._connection_task
         self.assertTrue(task.monitoring)

@@ -148,6 +148,79 @@ class CanDiagnosticTableUiTests(unittest.TestCase):
         self.assertEqual(name.toolTip(), '')
         self.assertEqual(name.text(), 'Start Diagnostic Session')
 
+    # --- Results column ----------------------------------------------------
+    def test_theme_owns_the_result_and_negative_response_colors(self):
+        from dataclasses import fields
+        from gui.themes.colors import DARK_COLORS, LIGHT_COLORS, ThemeColors
+        names = {field.name for field in fields(ThemeColors)}
+        tokens = {'RESULT_PASSED_BG', 'RESULT_FAILED_BG', 'RESULT_TIMEOUT_BG', 'RESULT_TEXT', 'NEGATIVE_RESPONSE_TEXT'}
+        self.assertTrue(tokens <= names)
+        for colors in (LIGHT_COLORS, DARK_COLORS):
+            self.assertEqual(colors.RESULT_TEXT.upper(), '#FFFFFF')
+            self.assertEqual(len({colors.RESULT_PASSED_BG, colors.RESULT_FAILED_BG, colors.RESULT_TIMEOUT_BG}), 3)
+
+    def test_results_show_only_passed_failed_or_timeout(self):
+        panel = self.make_panel(8)
+        cases = [('Passed', 'Passed'), ('Not Evaluated', 'Passed'), ('Failed', 'Failed'), ('Error', 'Failed'),
+                 ('Timeout', 'Timeout'), ('Running', '\u2014'), ('Pending', '\u2014'), ('Cancelled', '\u2014')]
+        for row, (outcome, _label) in enumerate(cases):
+            panel.set_step_result(panel.step_ids[row], '62 F1 90', outcome, f'detail {outcome}')
+        for row, (outcome, label) in enumerate(cases):
+            self.assertEqual(panel.table.item(row, panel.COL_RESULT).text(), label, outcome)
+            self.assertEqual(panel._runtime[panel.step_ids[row]][1], outcome)  # The raw outcome is kept.
+            self.assertEqual(panel.table.item(row, panel.COL_RESULT).toolTip(), f'detail {outcome}')
+
+    def result_pixel(self, panel, row):
+        self.app.processEvents()
+        table = panel.table
+        x = table.columnViewportPosition(panel.COL_RESULT) + 3
+        y = table.rowViewportPosition(row) + table.rowHeight(row) // 2
+        return table.viewport().grab().toImage().pixelColor(x, y).name().lower()
+
+    def test_result_cells_are_filled_from_theme_colors_even_when_the_row_is_selected(self):
+        from gui.themes.theme import ThemeType
+        from gui.themes.theme_manager import ThemeManager
+        panel = self.make_panel(4)
+        for row, outcome in enumerate(('Passed', 'Failed', 'Timeout')):
+            panel.set_step_result(panel.step_ids[row], '62 F1 90', outcome)
+        self.addCleanup(ThemeManager.fn_set_theme, ThemeManager.fn_theme())
+        for theme in (ThemeType.LIGHT, ThemeType.DARK):
+            ThemeManager.fn_set_theme(theme)
+            panel.fn_refresh_theme()
+            colors = ThemeManager.fn_colors()
+            panel.table.clearSelection()
+            self.assertEqual(self.result_pixel(panel, 0), colors.RESULT_PASSED_BG.lower())
+            self.assertEqual(self.result_pixel(panel, 1), colors.RESULT_FAILED_BG.lower())
+            self.assertEqual(self.result_pixel(panel, 2), colors.RESULT_TIMEOUT_BG.lower())
+            self.assertNotIn(self.result_pixel(panel, 3), (colors.RESULT_PASSED_BG.lower(), colors.RESULT_FAILED_BG.lower(),
+                                                          colors.RESULT_TIMEOUT_BG.lower()))
+            panel.table.selectRow(1)
+            self.assertEqual(self.result_pixel(panel, 1), colors.RESULT_FAILED_BG.lower())
+
+    # --- Receive Message ---------------------------------------------------
+    def test_negative_response_is_red_and_bold_and_positive_is_not(self):
+        from gui.themes.theme_manager import ThemeManager
+        panel = self.make_panel(3)
+        panel.set_step_result(panel.step_ids[0], '7F 22 31', 'Failed')
+        panel.set_step_result(panel.step_ids[1], '62 F1 90 7F', 'Passed')
+        negative = panel.table.cellWidget(0, panel.COL_RECEIVE).styleSheet()
+        positive = panel.table.cellWidget(1, panel.COL_RECEIVE).styleSheet()
+        self.assertIn(ThemeManager.fn_colors().NEGATIVE_RESPONSE_TEXT, negative)
+        self.assertIn('font-weight: bold', negative)
+        self.assertNotIn('font-weight: bold', positive)
+        self.assertNotIn(ThemeManager.fn_colors().NEGATIVE_RESPONSE_TEXT, positive)
+        panel.set_step_result(panel.step_ids[0], '62 F1 90', 'Passed')  # The look follows the new content.
+        self.assertNotIn('font-weight: bold', panel.table.cellWidget(0, panel.COL_RECEIVE).styleSheet())
+
+    def test_clicking_receive_message_selects_all_text_like_the_payload_cell(self):
+        panel = self.make_panel(2)
+        panel.set_step_result(panel.step_ids[1], '62 F1 90 41 42 43', 'Passed')
+        cell = panel.table.cellWidget(1, panel.COL_RECEIVE)
+        QTest.mouseClick(cell, Qt.LeftButton, Qt.NoModifier, QPoint(5, cell.height() // 2))
+        self.assertEqual(cell.selectedText(), '62 F1 90 41 42 43')
+        self.assertEqual(panel.table.currentRow(), 1)
+        self.assertEqual(panel.selected_step_id(), panel.step_ids[1])
+
     # --- fonts -----------------------------------------------------------
     def test_table_text_uses_the_same_font_as_the_ecu_column(self):
         from gui.widgets.can_interface.diagnostic_table_panel import fn_hex_font
@@ -237,7 +310,6 @@ class CanDiagnosticTableTests(unittest.TestCase):
             ThemeManager.fn_set_theme(theme)
             panel.fn_refresh_theme()
             self.assertEqual(panel.table.item(0,panel.COL_RESULT).text(),'Passed')
-            self.assertEqual(panel.table.item(0,panel.COL_RESULT).foreground().color().name(),ThemeManager.fn_colors().SUCCESS.lower())
             self.assertFalse(panel.fn_is_dirty())
         panel.table.item(0,panel.COL_COMMENT).setText('changed')
         self.assertEqual(panel.table.item(0,panel.COL_RESULT).text(),'Passed')

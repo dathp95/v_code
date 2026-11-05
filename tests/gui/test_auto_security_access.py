@@ -72,13 +72,13 @@ class AutoSecurityGuiTests(unittest.TestCase):
 
     def test_preflight_no_extended_or_provider_sends_nothing(self):
         self.auto()
-        self.assertEqual(self.outcome(1), 'Error')
+        self.assertEqual(self.outcome(1), 'Failed')
         self.assertEqual(self.backend.requests, [])
 
     def test_zero_seed_not_evaluated_never_fabricates_6702(self):
         self.extended(); self.backend.seed = bytes(16)
         self.auto()
-        self.assertEqual(self.outcome(1), 'Not Evaluated')
+        self.assertEqual(self.outcome(1), 'Passed')
         self.assertNotEqual(self.panel.table.item(1, self.panel.COL_RECEIVE).text(), '67 02')
         self.assertEqual(len(self.backend.requests), 2)
 
@@ -116,7 +116,7 @@ class AutoSecurityGuiTests(unittest.TestCase):
 
     def test_seed_bad_length_or_terminal_nrc_never_sends_key(self):
         self.extended(); self.backend.seed = bytes(range(15))
-        self.auto(); self.assertEqual(self.outcome(1), 'Error')
+        self.auto(); self.assertEqual(self.outcome(1), 'Failed')
         original = self.backend._response
         def response(payload):
             original(b'\x7f\x27\x36' if payload and payload[:2] == b'\x67\x01' else payload)
@@ -127,10 +127,10 @@ class AutoSecurityGuiTests(unittest.TestCase):
     def test_missing_provider_and_revoked_bench_block_before_seed(self):
         from services.can.hmac_sha1_provider import ProviderVerificationGate
         self.extended(); self.service.security_gate = ProviderVerificationGate()
-        self.auto(); self.assertEqual(self.outcome(1), 'Error')
+        self.auto(); self.assertEqual(self.outcome(1), 'Failed')
         self.service.security_gate = ProviderVerificationGate(simulator=True)
         self.service.fn_revoke_trusted_bench()
-        self.auto(); self.assertEqual(self.outcome(1), 'Error')
+        self.auto(); self.assertEqual(self.outcome(1), 'Failed')
         self.assertEqual(len(self.backend.requests), 1)
 
     def test_double_click_and_other_row_cannot_interleave_calculation(self):
@@ -153,7 +153,7 @@ class AutoSecurityGuiTests(unittest.TestCase):
             self.wait(lambda: self.outcome(1) == 'Passed')
         self.assertEqual(len(self.backend.requests), 3)
         self.assertNotEqual(threads, [get_ident()])
-        self.assertEqual(states, ['Running'])
+        self.assertEqual(states, ['\u2014'])
         self.assertEqual(model_comments, ['Operator note'])
         repository = self.tab.workspace_controller.repository
         path = repository.root / 'auto-save.json'
@@ -199,7 +199,7 @@ class AutoSecurityGuiTests(unittest.TestCase):
         self.extended()
         provider = self.service.security_provider('BENCH', 'BCM')
         with patch.object(provider, 'calculate', side_effect=TimeoutError('PRIVATE_SECRET')):
-            self.auto(); self.assertEqual(self.outcome(1), 'Error')
+            self.auto(); self.assertEqual(self.outcome(1), 'Failed')
         self.assertNotIn('PRIVATE_SECRET', self.panel.notice.text())
         self.assertIsNone(self.service._auto_context)
         self.auto(); self.assertEqual(self.outcome(1), 'Passed')
@@ -216,7 +216,7 @@ class AutoSecurityGuiTests(unittest.TestCase):
             self.panel.table.cellWidget(1, self.panel.COL_SEND).click()
             QTimer.singleShot(15, lambda: setattr(self.service, 'security_gate', ProviderVerificationGate(simulator=True)))
             self.wait(lambda: not self.tab.diagnostic_controller.auto_security.busy)
-        self.assertEqual(self.outcome(1), 'Error')
+        self.assertEqual(self.outcome(1), 'Failed')
         self.assertEqual(len(self.backend.requests), 2)
 
     def test_disconnect_during_calculation_cancels_without_key(self):
@@ -260,7 +260,7 @@ class AutoSecurityGuiTests(unittest.TestCase):
             return False if request.uds_payload[:2] == b'\x27\x02' else original(request)
         with patch.object(task, 'submit_diagnostic', side_effect=submit):
             self.auto()
-        self.assertEqual(self.outcome(1), 'Error')
+        self.assertEqual(self.outcome(1), 'Failed')
         self.assertEqual(len(self.backend.requests), 2)
         self.assertIsNone(self.service._auto_context)
 
@@ -353,6 +353,7 @@ class AutoSecurityGuiTests(unittest.TestCase):
         self.wait(lambda: not self.tab.diagnostic_controller._sequence_running
                   and self.outcome(2) not in ('Running', '\u2014'))
         self.assertEqual([self.outcome(row) for row in range(3)], ['Passed', '\u2014', 'Passed'])
+        self.assertFalse(self.panel.fn_is_dirty())  # Running a sequence and receiving data never enables Save.
         self.assertEqual([p[:3] for p in self.backend.requests], [b'\x10\x03', b'\x2f\xf0\xac'])
         self.assertEqual(self.backend.requests[1], bytes.fromhex('2F F0 AC 03 01'))
 
@@ -403,6 +404,6 @@ class PhysicalAutoGateGuiTests(unittest.TestCase):
             panel.table.cellWidget(0, panel.COL_SEND).click()
             question.assert_not_called()
         self.assertEqual(self.bus.sent, [])
-        self.assertEqual(panel.table.item(0, panel.COL_RESULT).text(), 'Error')
+        self.assertEqual(panel.table.item(0, panel.COL_RESULT).text(), 'Failed')
         self.assertIn('Physical Auto L1 blocked', panel.notice.text())
 

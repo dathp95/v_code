@@ -53,7 +53,7 @@ class SecuritySeedGuiTests(unittest.TestCase):
         panel = self.configure()
         with patch.object(QMessageBox,'question',return_value=QMessageBox.Yes) as confirm:
             self.click()
-            self.wait(lambda:self.outcome()=='Error')
+            self.wait(lambda:self.outcome()=='Failed')
         confirm.assert_not_called()
         self.assertEqual(self.bus.sent,[])
         self.assertIn('Physical Auto',panel.notice.text())

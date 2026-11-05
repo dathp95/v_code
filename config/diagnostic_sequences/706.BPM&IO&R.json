@@ -11,7 +11,7 @@
         {
             "step": 1,
             "sequence_name": "Start Diagnostic Session",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 10 03",
             "delay_ms": 100,
             "repeat": 1,
@@ -24,7 +24,7 @@
         {
             "step": 2,
             "sequence_name": "Perform Security Access -Requese seed -L1",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 27 01",
             "delay_ms": 100,
             "repeat": 1,
@@ -37,7 +37,7 @@
         {
             "step": 3,
             "sequence_name": "Perform Security Access -Requese seed -L2",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 27 03",
             "delay_ms": 100,
             "repeat": 1,
@@ -50,7 +50,7 @@
         {
             "step": 4,
             "sequence_name": "Horn Ctrl",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 50 12 03 01",
             "delay_ms": 3000,
             "repeat": 1,
@@ -63,7 +63,7 @@
         {
             "step": 5,
             "sequence_name": "Horn OFF",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 50 12 03 00",
             "delay_ms": 100,
             "repeat": 1,
@@ -76,7 +76,7 @@
         {
             "step": 6,
             "sequence_name": "Door Lock Control-Driver door unlock",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 50 14 03 01",
             "delay_ms": 100,
             "repeat": 1,
@@ -89,7 +89,7 @@
         {
             "step": 7,
             "sequence_name": "Door Lock Control-3 Door unlock",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 50 14 03 02",
             "delay_ms": 100,
             "repeat": 1,
@@ -102,7 +102,7 @@
         {
             "step": 8,
             "sequence_name": "Door Lock Control-4 Door unlock",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 50 14 03 03",
             "delay_ms": 100,
             "repeat": 1,
@@ -115,7 +115,7 @@
         {
             "step": 9,
             "sequence_name": "Door Lock Control-4 Door lock",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 50 14 03 04",
             "delay_ms": 100,
             "repeat": 1,
@@ -128,7 +128,7 @@
         {
             "step": 10,
             "sequence_name": "Front Wiper Control-Low speed",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 50 19 03 01",
             "delay_ms": 100,
             "repeat": 1,
@@ -141,7 +141,7 @@
         {
             "step": 11,
             "sequence_name": "Front Wiper Control-Fast speed",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 50 19 03 02",
             "delay_ms": 100,
             "repeat": 1,
@@ -154,7 +154,7 @@
         {
             "step": 12,
             "sequence_name": "Rear Wiper Control",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 51 19 03 01",
             "delay_ms": 100,
             "repeat": 1,
@@ -167,7 +167,7 @@
         {
             "step": 13,
             "sequence_name": "Front wash Control",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 50 1A 03 01",
             "delay_ms": 100,
             "repeat": 1,
@@ -180,7 +180,7 @@
         {
             "step": 14,
             "sequence_name": "Rear wash Control",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 50 1A 03 02",
             "delay_ms": 100,
             "repeat": 1,
@@ -193,7 +193,7 @@
         {
             "step": 15,
             "sequence_name": "Relay CL30s",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 50 20 03 01",
             "delay_ms": 100,
             "repeat": 1,
@@ -206,7 +206,7 @@
         {
             "step": 16,
             "sequence_name": "Relay IGN",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 51 1E 03 01",
             "delay_ms": 100,
             "repeat": 1,
@@ -219,7 +219,7 @@
         {
             "step": 17,
             "sequence_name": "FLWindow Control-Up",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 50 1B 03 01",
             "delay_ms": 100,
             "repeat": 1,
@@ -232,7 +232,7 @@
         {
             "step": 18,
             "sequence_name": "FLWindow Control-Down",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 50 1B 03 02",
             "delay_ms": 100,
             "repeat": 1,
@@ -245,7 +245,7 @@
         {
             "step": 19,
             "sequence_name": "FRWindow Control-Up",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 51 1B 03 01",
             "delay_ms": 100,
             "repeat": 1,
@@ -258,7 +258,7 @@
         {
             "step": 20,
             "sequence_name": "FRWindow Control-Down",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 51 1B 03 02",
             "delay_ms": 100,
             "repeat": 1,
@@ -271,7 +271,7 @@
         {
             "step": 21,
             "sequence_name": "RLWindow Control-Up",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 52 1B 03 01",
             "delay_ms": 100,
             "repeat": 1,
@@ -284,7 +284,7 @@
         {
             "step": 22,
             "sequence_name": "RLWindow Control-Down",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 52 1B 03 02",
             "delay_ms": 100,
             "repeat": 1,
@@ -297,7 +297,7 @@
         {
             "step": 23,
             "sequence_name": "RRWindow Control-Up",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 53 1B 03 01",
             "delay_ms": 100,
             "repeat": 1,
@@ -310,7 +310,7 @@
         {
             "step": 24,
             "sequence_name": "RRWindow Control-Down",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 53 1B 03 02",
             "delay_ms": 100,
             "repeat": 1,
@@ -323,7 +323,7 @@
         {
             "step": 25,
             "sequence_name": "TrkDoorLock Control",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 2F 50 15 03 01",
             "delay_ms": 100,
             "repeat": 1,
@@ -336,7 +336,7 @@
         {
             "step": 26,
             "sequence_name": "clear all DTC information",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 14 FF FF FF",
             "delay_ms": 100,
             "repeat": 1,
@@ -349,7 +349,7 @@
         {
             "step": 27,
             "sequence_name": "ReadDTC",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 19 02 09",
             "delay_ms": 100,
             "repeat": 1,
@@ -362,7 +362,7 @@
         {
             "step": 28,
             "sequence_name": "End Diagnostic Session",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 10 01",
             "delay_ms": 100,
             "repeat": 1,

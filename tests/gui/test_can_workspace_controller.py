@@ -90,6 +90,39 @@ class CanWorkspaceControllerTests(unittest.TestCase):
             self.assertEqual(panel.table.item(0,panel.COL_RESULT).text(),'Passed')
             self.assertEqual(panel.table.cellWidget(0,panel.COL_RECEIVE).text(),'62 F1 90 00')
 
+    def test_opening_a_sequence_remaps_ecus_but_never_marks_it_modified(self):
+        import json
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
+            root=Path(directory)
+            step={'step':1,'sequence_name':'Read VIN','ecu':'WRONG_NAME','request':' 22 F1 90','delay_ms':100,'repeat':1,
+                  'expected_response':'62 F1 90','match':'prefix','comment':'',
+                  'source_request_id':0x681,'source_response_id':0x601}
+            source=root/'seq.json'
+            source.write_text(json.dumps({'schema_version':1,'name':'seq','description':'','enabled':True,
+                'execution':{'loop':1,'command_delay_ms':100},'steps':[step]}),encoding='utf-8')
+            repo=CanSequenceRepository(root)
+            store=CanInterfaceUiStore(root/'prefs')
+            sidebar=CanSequenceSidebar(repo,store)
+            panel=CanDiagnosticTablePanel(vehicle_service=SimpleNamespace(list_vehicles=lambda:['BENCH'],
+                load_vehicle=lambda _:Vehicle('BENCH',ecus=[ECU('BCM','681','601')])))
+            controller=CanWorkspaceController(sidebar,panel,repo,store)
+            for obj in (controller,panel,sidebar): self.addCleanup(obj.deleteLater)
+            self.assertTrue(controller.open_source(str(source)))
+            self.assertEqual(panel.fn_current_sequence().steps[0].ecu,'WRONG_NAME')  # No Vehicle: nothing to resolve.
+            self.assertFalse(panel.fn_is_dirty())
+            panel.vehicle_selector.fn_set_vehicle('BENCH')
+            self.assertEqual(panel.fn_current_sequence().steps[0].ecu,'BCM')  # Addressing still maps to the ECU name.
+            self.assertFalse(panel.fn_is_dirty())
+            self.assertEqual(controller._session_dirty,set())
+            self.assertFalse(sidebar.btn_save.isEnabled())
+            self.assertFalse(panel.title.text().endswith('*'))
+            panel.set_step_result(panel.step_ids[0],'62 F1 90 41','Passed')  # A result is not an edit either.
+            self.assertFalse(panel.fn_is_dirty())
+            self.assertFalse(sidebar.btn_save.isEnabled())
+            panel.table.item(0,panel.COL_COMMENT).setText('real edit')
+            self.assertTrue(panel.fn_is_dirty())
+            self.assertTrue(sidebar.btn_save.isEnabled())
+
     def test_unsaved_switch_can_be_cancelled(self):
         fixtures=Path(__file__).parents[1]/'fixtures'/'can_interface'
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:

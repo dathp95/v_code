@@ -11,7 +11,7 @@
         {
             "step": 1,
             "sequence_name": "",
-            "ecu": "ACU",
+            "ecu": "ACM,ACU",
             "request": " 10 01",
             "delay_ms": 100,
             "repeat": 1,
@@ -24,7 +24,7 @@
         {
             "step": 2,
             "sequence_name": "",
-            "ecu": "ACU",
+            "ecu": "ACM,ACU",
             "request": " 10 03",
             "delay_ms": 100,
             "repeat": 1,
@@ -141,7 +141,7 @@
         {
             "step": 11,
             "sequence_name": "",
-            "ecu": "3IN1",
+            "ecu": "3N1",
             "request": " 10 01",
             "delay_ms": 100,
             "repeat": 1,
@@ -154,7 +154,7 @@
         {
             "step": 12,
             "sequence_name": "",
-            "ecu": "3IN1",
+            "ecu": "3N1",
             "request": " 10 03",
             "delay_ms": 100,
             "repeat": 1,
@@ -167,7 +167,7 @@
         {
             "step": 13,
             "sequence_name": "",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 10 01",
             "delay_ms": 100,
             "repeat": 1,
@@ -180,7 +180,7 @@
         {
             "step": 14,
             "sequence_name": "",
-            "ecu": "BCM_BPM",
+            "ecu": "BPM",
             "request": " 10 03",
             "delay_ms": 100,
             "repeat": 1,
@@ -323,7 +323,7 @@
         {
             "step": 25,
             "sequence_name": "",
-            "ecu": "IVC_MHU",
+            "ecu": "MHU",
             "request": " 10 01",
             "delay_ms": 100,
             "repeat": 1,
@@ -336,7 +336,7 @@
         {
             "step": 26,
             "sequence_name": "",
-            "ecu": "IVC_MHU",
+            "ecu": "MHU",
             "request": " 10 03",
             "delay_ms": 100,
             "repeat": 1,
@@ -349,7 +349,7 @@
         {
             "step": 27,
             "sequence_name": "",
-            "ecu": "IVC_SGC",
+            "ecu": "SGC",
             "request": " 10 01",
             "delay_ms": 100,
             "repeat": 1,
@@ -362,7 +362,7 @@
         {
             "step": 28,
             "sequence_name": "",
-            "ecu": "IVC_SGC",
+            "ecu": "SGC",
             "request": " 10 03",
             "delay_ms": 100,
             "repeat": 1,

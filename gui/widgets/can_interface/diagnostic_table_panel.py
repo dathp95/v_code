@@ -251,6 +251,61 @@ class HexItemDelegate(QStyledItemDelegate):
 
 
 
+# The Results column only ever shows Passed, Failed or Timeout; everything else is "no result".
+# A positive response with no expected value counts as Passed, any error as Failed.
+NO_RESULT = "\u2014"
+
+RESULT_LABELS = {
+    "Passed": "Passed",
+    "Not Evaluated": "Passed",
+    "Failed": "Failed",
+    "Error": "Failed",
+    "Timeout": "Timeout",
+}
+
+
+def result_label(outcome):
+    return RESULT_LABELS.get(outcome, NO_RESULT)
+
+
+def is_negative_response(text):
+    tokens = str(text or "").split()
+
+    return bool(tokens) and tokens[0].upper() == "7F"
+
+
+class ResultDelegate(QStyledItemDelegate):
+    """Fills a Passed / Failed / Timeout cell with its theme color, even in a selected row."""
+
+    def paint(self, painter, option, index):
+        label = index.data(Qt.DisplayRole)
+
+        colors = ThemeManager.fn_colors()
+
+        background = {
+            "Passed": colors.RESULT_PASSED_BG,
+            "Failed": colors.RESULT_FAILED_BG,
+            "Timeout": colors.RESULT_TIMEOUT_BG,
+        }.get(label)
+
+        if background is None:
+            super().paint(painter, option, index)
+
+            return
+
+        painter.save()
+
+        painter.fillRect(option.rect, QColor(background))
+
+        painter.setFont(option.font)
+
+        painter.setPen(QColor(colors.RESULT_TEXT))
+
+        painter.drawText(option.rect, Qt.AlignCenter, label)
+
+        painter.restore()
+
+
 class TextItemDelegate(HexItemDelegate):
     """Free-text editor with the same boxed look as the HEX editors."""
 
@@ -267,8 +322,9 @@ class TextItemDelegate(HexItemDelegate):
 class ReadOnlyHexCell(QLineEdit):
     """Read-only HEX cell using the existing V-CODE theme.
 
-    At rest it blends into the row; once clicked it takes the same boxed look as the
-    Expected Response editor, so the text can be selected and copied.
+    At rest it blends into the row; once clicked it selects all of its text and takes the same
+    boxed look as the Payload / Expected Response editors, so the text can be copied.
+    A negative response (7F ...) is drawn in the theme's red, bold.
     """
 
     def __init__(self, text="", parent=None):
@@ -289,6 +345,7 @@ class ReadOnlyHexCell(QLineEdit):
         self._selected = False
         self._row = 0
         self._focused = False
+        self._select_all_on_click = True
         self.fn_refresh_theme()
 
     def set_payload(self, text):
@@ -297,6 +354,8 @@ class ReadOnlyHexCell(QLineEdit):
 
         # Long data always shows its beginning, never its tail.
         self.setCursorPosition(0)
+
+        self.fn_refresh_theme()
 
     def fn_refresh_theme(self, selected=None, row=None):
         if selected is not None:
@@ -307,11 +366,14 @@ class ReadOnlyHexCell(QLineEdit):
 
         selected, row = self._selected, self._row
 
+        negative = is_negative_response(self.text())
+
         signature = (
             ThemeManager.fn_theme(),
             selected,
             row % 2,
             self._focused,
+            negative,
         )
 
         if signature == self._style_signature:
@@ -361,6 +423,15 @@ class ReadOnlyHexCell(QLineEdit):
                 colors.TEXT if selected else selected_text
             )
 
+        weight = ""
+
+        if negative:
+            weight = "font-weight: bold;"
+
+            # Red on the blue selected row would be unreadable: keep the row's own text color there.
+            if self._focused or not selected:
+                foreground = colors.NEGATIVE_RESPONSE_TEXT
+
         self.setStyleSheet(
             fn_lineedit_style()
             + f"""
@@ -375,6 +446,7 @@ class ReadOnlyHexCell(QLineEdit):
                 selection-color: {selection_fg};
                 font-family: "{HEX_FONT_FAMILY}";
                 font-size: {HEX_FONT_SIZE}pt;
+                {weight}
             }}
             """
         )
@@ -391,12 +463,20 @@ class ReadOnlyHexCell(QLineEdit):
         super().focusOutEvent(event)
 
         self._focused = False
+        self._select_all_on_click = True
         self.deselect()
         self.setCursorPosition(0)
         self.fn_refresh_theme()
 
     def mousePressEvent(self, event):
-        super().mousePressEvent(event)
+        if self._select_all_on_click:
+            # First click behaves like clicking a Payload cell: focus it and select everything.
+            self._select_all_on_click = False
+            self.setFocus(Qt.MouseFocusReason)
+            self.selectAll()
+            event.accept()
+        else:
+            super().mousePressEvent(event)
 
         table = self.parent()
 
@@ -644,6 +724,10 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         self.text_delegate = TextItemDelegate(self.table)
 
         self.table.setItemDelegateForColumn(self.COL_SEQUENCE_NAME, self.text_delegate)
+
+        self.result_delegate = ResultDelegate(self.table)
+
+        self.table.setItemDelegateForColumn(self.COL_RESULT, self.result_delegate)
 
         self.table.setItemDelegateForColumn(self.COL_REQUEST, self.hex_delegate)
 
@@ -1240,9 +1324,11 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         self._set_item(row, self.COL_RECEIVE, payload, editable=False)
 
-        self._set_item(row, self.COL_RESULT, outcome, editable=False)
+        label = result_label(outcome)
 
-        self.table.item(row, self.COL_RESULT).setToolTip(detail or outcome)
+        self._set_item(row, self.COL_RESULT, label, editable=False)
+
+        self.table.item(row, self.COL_RESULT).setToolTip(detail or label)
 
         # Update ReadOnlyHexCell widget in COL_RECEIVE
 
@@ -1277,12 +1363,6 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         step = self._test_case.steps[row]
 
         self._set_item(row, self.COL_COMMENT, step.comment, editable=True)
-
-        colors = ThemeManager.fn_colors()
-
-        color = colors.SUCCESS if outcome == "Passed" else colors.DANGER if outcome in ("Failed", "Error", "Timeout") else colors.WARNING if outcome in ("Pending", "Running") else colors.TEXT
-
-        self.table.item(row, self.COL_RESULT).setForeground(QColor(color))
 
     def reset_runtime_results(self):
 
@@ -1589,7 +1669,7 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         return export_sequence_text(case.steps if case else (),
 
-                                    [self._runtime.get(key, ('', '', ''))[1] for key in self.step_ids])
+                                    [RESULT_LABELS.get(self._runtime.get(key, ('', '', ''))[1], '') for key in self.step_ids])
 
     def export_excel(self):
         from core.services.diagnostic_sequence_report_service import DiagnosticSequenceReportService
@@ -1667,7 +1747,7 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
                 "repeat": repeat_val,
                 "expected": exp_val,
                 "receive": runtime_payload,
-                "result": outcome,
+                "result": result_label(outcome),
                 "comment": comment,
             })
 
@@ -1760,7 +1840,9 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         """
 
-        if self._test_case is None:
+        if self._test_case is None or self._current_vehicle is None:
+
+            # Without a Vehicle there is nothing to resolve against: keep the saved ECU names.
 
             return False
 
@@ -1818,9 +1900,14 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         self._refresh_ecu_combos()
 
-        # Update unsaved RAM draft and the "*" indicator.
+        # Addressing -> ECU name is derived from the selected Vehicle, not a user edit:
+        # refresh the dependent views but leave the document unmodified (no "*", no Save).
 
-        self._mark_dirty()
+        self._step_signatures = self._runtime_signatures()
+
+        self.document_changed.emit()
+
+        self._selection_changed()
 
         return True
 

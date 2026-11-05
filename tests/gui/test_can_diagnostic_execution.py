@@ -145,14 +145,14 @@ class CanDiagnosticExecutionTests(unittest.TestCase):
 
     def test_native_io_error_cleans_and_blocks_further_use(self):
         self.bus.mode='send_error';self.click()
-        self.wait(lambda:self.outcome()=='Error')
+        self.wait(lambda:self.outcome()=='Failed')
         self.assertEqual(self.service.snapshot.state,CANConnectionState.DISCONNECTED)
         self.assertTrue(self.service.snapshot.rediscovery_required)
         self.assertEqual(self.bus.close_count,1)
 
     def test_receive_error_before_tx_and_uncertain_cleanup(self):
         self.bus.mode='recv_error';self.click()
-        self.wait(lambda:self.outcome()=='Error')
+        self.wait(lambda:self.outcome()=='Failed')
         self.assertEqual(self.bus.sent,[])
         self.assertTrue(self.service.snapshot.rediscovery_required)
         self.assertEqual(self.bus.close_count,1)
@@ -173,7 +173,7 @@ class CanDiagnosticExecutionTests(unittest.TestCase):
         self.wait(lambda:len(self.bus.sent)>0)
         self.tab.disconnect_can()
         self.wait(lambda:not self.tab._connection_task.running)
-        self.assertEqual(self.outcome(),'Cancelled')
+        self.assertEqual(self.outcome(),'\u2014')
         self.assertEqual(self.bus.close_count,1)
         self.tab._connection_task.shutdown()
         self.assertFalse(self.tab._connection_task.alive)

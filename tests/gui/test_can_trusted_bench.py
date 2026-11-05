@@ -60,7 +60,7 @@ class TrustedBenchGuiTests(unittest.TestCase):
         self.bus.mode='pending';self.click();self.wait(lambda:bool(self.bus.sent))
         panel.table.item(0,panel.COL_COMMENT).setText('metadata edit during pending')
         self.wait(lambda:not self.tab._connection_task.diagnostic_busy)
-        self.assertNotEqual(self.outcome(),'Running')
+        self.assertEqual(self.outcome(),'\u2014')
         self.assertNotEqual(self.outcome(),'Passed')
 
     def test_four_actual_fake_bus_results_survive_fifth_ecu_edit(self):
