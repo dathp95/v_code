@@ -1,5 +1,6 @@
 import unittest
 from dataclasses import replace
+from types import SimpleNamespace
 
 from core.diagnostic_request import DiagnosticResult, DiagnosticOutcome as Outcome
 from tests.services.test_security_seed_request import seed_request
@@ -10,6 +11,15 @@ class AutoSecurityCoordinatorTests(unittest.TestCase):
     def flow(self):
         from services.can.auto_security_access import AutoSecurityAccessL1
         return AutoSecurityAccessL1(replace(seed_request(), expected=b'\x67\x02'))
+
+    def test_matches_depends_on_seed_payload_only_not_expected(self):
+        from services.can.auto_security_access import AutoSecurityAccessL1
+        for expected in (b'', b'\x67\x01', b'\x67\x02', b'\x50\x03'):
+            self.assertTrue(AutoSecurityAccessL1.matches(replace(seed_request(), expected=expected)))
+        flow = AutoSecurityAccessL1(replace(seed_request(), expected=b''))
+        self.assertEqual(flow.expected_unlock, b'\x67\x02')
+        for payload in (b'\x27\x02', b'\x27\x01\x00', b'\x22\xf1\x90', b'\x27\x09'):
+            self.assertFalse(AutoSecurityAccessL1.matches(SimpleNamespace(uds_payload=payload)))
 
     def test_seed_subrequest_has_its_own_identity_and_expectation(self):
         flow = self.flow()

@@ -43,6 +43,33 @@ class AutoSecurityGuiTests(unittest.TestCase):
         self.assertEqual(len(set(self.backend.threads)), 1)
         self.assertNotEqual(self.backend.threads[0], get_ident())
 
+    def autosec_log(self):
+        with self.assertLogs('vcode.autosec', level='DEBUG') as captured:
+            self.extended()
+            self.auto()
+        return chr(10).join(captured.output)
+
+    def test_trace_logs_each_phase_without_seed_or_key_bytes(self):
+        text = self.autosec_log()
+        for event in ('AUTO start', 'AUTO seed result', 'AUTO key calculated',
+                      'AUTO key sent', 'AUTO key result', 'finished | outcome=Passed'):
+            self.assertIn(event, text)
+        self.assertIn('seed_len=16', text)
+        self.assertIn('since_seed=', text)
+        self.assertNotIn('00 01 02 03', text)
+        self.assertNotIn('000102', text)
+
+    def test_trace_names_the_nrc_when_key_is_rejected(self):
+        self.backend.key_response = bytes((0x7f, 0x27, 0x35))
+        text = self.autosec_log()
+        self.assertIn('nrc=0x35 invalidKey', text)
+        self.assertIn('AUTO key result', text)
+
+    def test_trace_logs_reason_when_workflow_aborts(self):
+        self.backend.seed = bytes(16)
+        text = self.autosec_log()
+        self.assertIn('zero_seed=True', text)
+
     def test_preflight_no_extended_or_provider_sends_nothing(self):
         self.auto()
         self.assertEqual(self.outcome(1), 'Error')
@@ -251,16 +278,49 @@ class AutoSecurityGuiTests(unittest.TestCase):
         self.assertNotEqual(self.outcome(1), 'Passed')
         self.assertEqual(len(self.backend.requests), 2)
 
-    def test_blank_expected_preserves_manual_seed_only(self):
+    def test_seed_request_auto_unlocks_whatever_expected_says(self):
         self.extended()
-        self.panel.table.item(1, self.panel.COL_EXPECTED).setText('67 01')
-        self.panel.table.selectRow(1)
-        with patch.object(QMessageBox, 'question', return_value=QMessageBox.Yes) as question:
-            self.panel.table.cellWidget(1, self.panel.COL_SEND).click()
-            self.wait(lambda: self.outcome(1) == 'Passed')
-            question.assert_called_once()
-        self.assertTrue(self.panel.table.item(1, self.panel.COL_RECEIVE).text().startswith('67 01 '))
-        self.assertEqual(len(self.backend.requests), 2)
+        for expected in ('', '67 01', '67 03', '50 03'):
+            with self.subTest(expected=expected):
+                before = len(self.backend.requests)
+                self.panel.table.item(1, self.panel.COL_EXPECTED).setText(expected)
+                self.panel.table.selectRow(1)
+                with patch.object(QMessageBox, 'question', return_value=QMessageBox.No) as question:
+                    self.panel.table.cellWidget(1, self.panel.COL_SEND).click()
+                    self.wait(lambda: self.outcome(1) not in ('Running', '—'))
+                    question.assert_not_called()
+                self.assertEqual(self.outcome(1), 'Passed')
+                self.assertEqual(self.panel.table.item(1, self.panel.COL_RECEIVE).text(), '67 02')
+                self.assertEqual([p[:2] for p in self.backend.requests[before:]], [b'\x27\x01', b'\x27\x02'])
+                self.assertEqual(self.panel.sequence_for_save().steps[1].expected_response, expected)
+
+    def test_sequence_run_unlocks_seed_rows_with_blank_expected(self):
+        from core.diagnostic_sequence import DiagnosticStep, DiagnosticTestCase
+        self.tab._on_sequence_selected(DiagnosticTestCase(1, 'seq', '', True, [
+            DiagnosticStep(1, 'Session', 'BCM', '10 03', expected_response='50 03'),
+            DiagnosticStep(2, '', 'BCM', '27 01'),
+            DiagnosticStep(3, '', 'BCM', '27 03')]))
+        self.panel.vehicle_selector.fn_set_vehicle('BENCH')
+        with patch.object(QMessageBox, 'question', return_value=QMessageBox.No) as question:
+            self.panel.btn_run.click()
+            self.wait(lambda: not self.tab.diagnostic_controller._sequence_running
+                      and self.outcome(2) not in ('Running', '—'))
+            question.assert_not_called()
+        self.assertEqual([self.outcome(row) for row in range(3)], ['Passed', 'Passed', 'Passed'])
+        self.assertEqual([self.panel.table.item(row, self.panel.COL_RECEIVE).text() for row in (1, 2)],
+                         ['67 02', '67 04'])
+        self.assertEqual([p[:2] for p in self.backend.requests],
+                         [b'\x10\x03', b'\x27\x01', b'\x27\x02', b'\x27\x03', b'\x27\x04'])
+
+    def test_generated_key_frames_reach_monitor_and_recording_sink(self):
+        captured = []
+        self.tab._connection_task._worker.session.capture_sink = captured.append
+        self.extended()
+        self.auto()
+        self.assertEqual(self.outcome(1), 'Passed')
+        self.wait(lambda: any(f.data[1:3] == b'g' for f in self.tab.monitor_panel._buffer))
+        for frames in (captured, self.tab.monitor_panel._buffer):
+            self.assertTrue(any(f.direction == 'TX' and f.data[0] >> 4 in (1, 2) for f in frames))
 
     def test_stale_6702_queued_before_workflow_cannot_prove_unlock(self):
         self.extended()

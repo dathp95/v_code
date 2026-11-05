@@ -68,6 +68,28 @@ class CanWorkspaceControllerTests(unittest.TestCase):
             self.assertFalse(controller.open_source(Path(directory)/'missing.diag'))
             self.assertIn('missing.diag',panel.notice.text())
 
+    def test_switching_sequences_away_and_back_keeps_runtime_results(self):
+        fixtures=Path(__file__).parents[1]/'fixtures'/'can_interface'
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
+            repo=CanSequenceRepository(directory)
+            store=CanInterfaceUiStore(Path(directory)/'prefs')
+            sidebar=CanSequenceSidebar(repo,store)
+            panel=CanDiagnosticTablePanel(vehicle_service=SimpleNamespace(list_vehicles=lambda:[]))
+            controller=CanWorkspaceController(sidebar,panel,repo,store)
+            for obj in (controller,panel,sidebar): self.addCleanup(obj.deleteLater)
+            first=fixtures/'0001.READ&CDS(1).diag'
+            second=fixtures/'0002.READ VIN(1).diag'
+            self.assertTrue(controller.open_source(first))
+            for row,key in enumerate(panel.step_ids):
+                panel.set_step_result(key,f'62 F1 90 {row:02X}','Passed',f'RT {row}')
+            expected=[panel._runtime[key] for key in panel.step_ids]
+            self.assertTrue(controller.open_source(second))
+            self.assertEqual(panel._runtime,{})
+            self.assertTrue(controller.open_source(first))
+            self.assertEqual([panel._runtime.get(key) for key in panel.step_ids],expected)
+            self.assertEqual(panel.table.item(0,panel.COL_RESULT).text(),'Passed')
+            self.assertEqual(panel.table.cellWidget(0,panel.COL_RECEIVE).text(),'62 F1 90 00')
+
     def test_unsaved_switch_can_be_cancelled(self):
         fixtures=Path(__file__).parents[1]/'fixtures'/'can_interface'
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:

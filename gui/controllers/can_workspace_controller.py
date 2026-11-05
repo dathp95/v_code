@@ -28,6 +28,10 @@ class CanWorkspaceController(QObject):
 
         # Paths that have unsaved modifications.
         self._session_dirty = set()
+
+        # Runtime results (Receive Message / Results) of sequences not on screen.
+        # Key: absolute source path. Value: panel.runtime_snapshot().
+        self._session_runtime = {}
         sidebar.load_diag_requested.connect(self.browse_source)
 
         sidebar.sequence_open_requested.connect(self.open_source)
@@ -223,6 +227,9 @@ class CanWorkspaceController(QObject):
             self._session_drafts.pop(old_id, None)
             self._session_dirty.discard(old_id)
             self.sidebar._dirty_ids.discard(old_id)
+            runtime = self._session_runtime.pop(old_id, None)
+            if runtime is not None:
+                self._session_runtime[new_id] = runtime
 
             if self.document_id == old_id:
                 self.source = destination
@@ -289,6 +296,7 @@ class CanWorkspaceController(QObject):
 
         self._session_drafts.pop(old_id, None)
         self._session_dirty.discard(old_id)
+        self._session_runtime.pop(old_id, None)
         self.sidebar._dirty_ids.discard(old_id)
 
         state = self.store.load()
@@ -686,8 +694,10 @@ class CanWorkspaceController(QObject):
             )
             return False
 
-        # Preserve the active unsaved document.
+        # Preserve the active unsaved document and its runtime results.
         self._remember_current_sequence()
+        if self.document_id is not None:
+            self._session_runtime[self.document_id] = self.panel.runtime_snapshot()
 
         # Switching is unconditional, with no Save dialog.
         self.source = path
@@ -710,6 +720,11 @@ class CanWorkspaceController(QObject):
         )
 
         self.panel.fn_refresh_vehicles(chosen)
+
+        # After the Vehicle refresh, which clears results; restores only unchanged rows.
+        self.panel.restore_runtime_snapshot(
+            self._session_runtime.pop(target_id, None)
+        )
 
         if hasattr(self.repository, "register_source"):
             self.repository.register_source(path)

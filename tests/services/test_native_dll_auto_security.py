@@ -281,29 +281,29 @@ class NativeDllAutoSecurityTests(unittest.TestCase):
     def test_auto_security_all_four_levels_activation_rules(self):
         from services.can.auto_security_access import AutoSecurityAccessL1
 
-        # Level 1: 27 01 -> only 67 02 activates auto
+        # Level 1: 27 01 -> always auto (expected is ignored); unlock response 67 02
         req_l1 = DiagnosticRequest('t', 's', 1, 'VF5NP', 'BCM', 0x681, 0x601, b'\x27\x01', b'\x67\x02', settings=self.settings)
         self.assertTrue(AutoSecurityAccessL1.matches(req_l1))
-        self.assertFalse(AutoSecurityAccessL1.matches(replace(req_l1, expected=b'\x67\x01')))
-        self.assertFalse(AutoSecurityAccessL1.matches(replace(req_l1, expected=b'')))
+        self.assertTrue(AutoSecurityAccessL1.matches(replace(req_l1, expected=b'\x67\x01')))
+        self.assertTrue(AutoSecurityAccessL1.matches(replace(req_l1, expected=b'')))
 
-        # Level 2: 27 03 -> only 67 04 activates auto
+        # Level 2: 27 03 -> always auto (expected is ignored); unlock response 67 04
         req_l2 = DiagnosticRequest('t', 's', 1, 'VF5NP', 'BCM', 0x681, 0x601, b'\x27\x03', b'\x67\x04', settings=self.settings)
         self.assertTrue(AutoSecurityAccessL1.matches(req_l2))
-        self.assertFalse(AutoSecurityAccessL1.matches(replace(req_l2, expected=b'\x67\x03')))
-        self.assertFalse(AutoSecurityAccessL1.matches(replace(req_l2, expected=b'')))
+        self.assertTrue(AutoSecurityAccessL1.matches(replace(req_l2, expected=b'\x67\x03')))
+        self.assertTrue(AutoSecurityAccessL1.matches(replace(req_l2, expected=b'')))
 
-        # Level 3: 27 05 -> only 67 06 activates auto
+        # Level 3: 27 05 -> always auto (expected is ignored); unlock response 67 06
         req_l3 = DiagnosticRequest('t', 's', 1, 'VF5NP', 'BCM', 0x681, 0x601, b'\x27\x05', b'\x67\x06', settings=self.settings)
         self.assertTrue(AutoSecurityAccessL1.matches(req_l3))
-        self.assertFalse(AutoSecurityAccessL1.matches(replace(req_l3, expected=b'\x67\x05')))
-        self.assertFalse(AutoSecurityAccessL1.matches(replace(req_l3, expected=b'')))
+        self.assertTrue(AutoSecurityAccessL1.matches(replace(req_l3, expected=b'\x67\x05')))
+        self.assertTrue(AutoSecurityAccessL1.matches(replace(req_l3, expected=b'')))
 
-        # Level 4: 27 07 -> only 67 08 activates auto
+        # Level 4: 27 07 -> always auto (expected is ignored); unlock response 67 08
         req_l4 = DiagnosticRequest('t', 's', 1, 'VF5NP', 'BCM', 0x681, 0x601, b'\x27\x07', b'\x67\x08', settings=self.settings)
         self.assertTrue(AutoSecurityAccessL1.matches(req_l4))
-        self.assertFalse(AutoSecurityAccessL1.matches(replace(req_l4, expected=b'\x67\x07')))
-        self.assertFalse(AutoSecurityAccessL1.matches(replace(req_l4, expected=b'')))
+        self.assertTrue(AutoSecurityAccessL1.matches(replace(req_l4, expected=b'\x67\x07')))
+        self.assertTrue(AutoSecurityAccessL1.matches(replace(req_l4, expected=b'')))
 
         # Unsupported subfunction 0x09: blocked by diagnostic request policy
         with self.assertRaises(DiagnosticValidationError):

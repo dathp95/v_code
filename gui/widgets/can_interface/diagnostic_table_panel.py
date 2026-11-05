@@ -370,6 +370,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
     OUTCOMES = frozenset(("Pending", "Running", "Passed", "Failed", "Timeout", "Error", "Not Evaluated", "Cancelled"))
 
+    TRANSIENT_OUTCOMES = frozenset(("Pending", "Running"))
+
     def __init__(self, parent=None, vehicle_service=None):
 
         self.step_ids = []
@@ -713,21 +715,21 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
             return replace(step, comment=text)
 
-        if column == self.COL_REQUEST:
+        if column in (self.COL_REQUEST, self.COL_EXPECTED):
+
+            field = "request" if column == self.COL_REQUEST else "expected_response"
 
             is_valid, formatted, _ = validate_and_format_hex(text)
 
             new_text = formatted if is_valid and formatted else text
 
-            return replace(step, request=new_text)
+            # Closing the one-click editor reformats stored HEX (e.g. ' 22f190' -> '22 F1 90').
+            # Same bytes is not an edit: keep the step so runtime results survive.
+            if self._canonical_hex(new_text) == self._canonical_hex(getattr(step, field)):
 
-        if column == self.COL_EXPECTED:
+                return step
 
-            is_valid, formatted, _ = validate_and_format_hex(text)
-
-            new_text = formatted if is_valid and formatted else text
-
-            return replace(step, expected_response=new_text)
+            return replace(step, **{field: new_text})
 
         return super()._updated_step_from_item(
 
@@ -769,11 +771,64 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         super()._mark_dirty()
 
+    @staticmethod
+    def _canonical_hex(value):
+
+        is_valid, formatted, _ = validate_and_format_hex(value)
+
+        return formatted if is_valid else str(value or "")
+
     def _runtime_signatures(self):
 
         return {key: (step.ecu, step.request, step.expected_response, step.match)
 
                 for key, step in zip(self.step_ids, self._test_case.steps if self._test_case else ())}
+
+    def runtime_snapshot(self):
+
+        """Per-row results for restoring after the sequence is reloaded (step ids are regenerated)."""
+
+        signatures = self._runtime_signatures()
+
+        rows = []
+
+        for key in self.step_ids:
+
+            result = self._runtime.get(key)
+
+            if result is not None and result[1] in self.TRANSIENT_OUTCOMES:
+
+                result = None
+
+            rows.append((signatures.get(key), result, self._auto_comments.get(key)))
+
+        return self._transport_configuration(), tuple(rows)
+
+    def restore_runtime_snapshot(self, snapshot):
+
+        """Restore rows whose step and Vehicle/ECU addressing are unchanged; others stay empty."""
+
+        if not snapshot or snapshot[0] != self._transport_configuration():
+
+            return
+
+        signatures = self._runtime_signatures()
+
+        with QSignalBlocker(self.table):
+
+            for row, (key, (signature, result, auto_comment)) in enumerate(zip(self.step_ids, snapshot[1])):
+
+                if result is None or signature != signatures.get(key):
+
+                    continue
+
+                self._runtime[key] = result
+
+                if auto_comment is not None:
+
+                    self._auto_comments[key] = auto_comment
+
+                self._render_runtime(row)
 
     def invalidate_step_result(self, key):
 

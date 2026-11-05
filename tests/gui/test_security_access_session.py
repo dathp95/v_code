@@ -4,8 +4,10 @@ from unittest.mock import patch
 
 from PySide6.QtWidgets import QMessageBox
 from core.diagnostic_sequence import DiagnosticTestCase, DiagnosticStep
+from core.diagnostic_request import DiagnosticOutcome as Outcome, DiagnosticResult
 from services.can.security_access_session import SecurityAccessState as State
 from tests.gui import test_can_diagnostic_execution as fixtures
+from services.can.ecu_diagnostic_resolver import resolve_request
 
 
 class SecurityAccessGuiTests(unittest.TestCase):
@@ -16,18 +18,20 @@ class SecurityAccessGuiTests(unittest.TestCase):
     outcome = fixtures.CanDiagnosticExecutionTests.outcome
 
     def receive_seed(self):
+        # A row send of 27 01 is an Auto workflow that never leaves a seed at rest, so the stored-seed
+        # lifecycle is exercised by handing the session a seed response directly.
         panel = self.tab.sequence_table
+        controller = self.tab.diagnostic_controller
         panel.table.item(0,panel.COL_REQUEST).setText('27 01')
-        panel.table.item(0,panel.COL_EXPECTED).setText('67 01')
-        self.bus.mode = 'seed'
-        original = self.bus.send
-        def send(message,timeout):
-            original(message,timeout)
-            if bytes(message.data[:3]) == b'\x02\x27\x01': self.bus.rx('04 67 01 AA BB 00 00 00')
-        self.bus.send = send
-        with patch.object(QMessageBox,'question',return_value=QMessageBox.Yes):
-            self.click();self.click()
-            self.wait(lambda:self.outcome()=='Passed')
+        key = panel.step_ids[0]
+        request = replace(resolve_request(panel._vehicle_service, panel.fn_current_vehicle(), panel.step_for_id(key),
+                                          key, controller.generation, controller.settings), confirmed=True)
+        identity, epoch = controller._connection_identity(), controller._session_epoch
+        controller.security_session.start(request, identity, epoch)
+        controller._seed_request = request
+        controller.security_session.receive(
+            DiagnosticResult(request, Outcome.PASSED, b'\x67\x01\xAA\xBB'), identity, epoch)
+        controller._refresh_security_status()
         return panel
 
     def test_seed_lifecycle_status_theme_and_manual_key_remains_disabled(self):
@@ -45,11 +49,11 @@ class SecurityAccessGuiTests(unittest.TestCase):
         for theme in (ThemeType.DARK,ThemeType.LIGHT):
             ThemeManager.fn_set_theme(theme);self.tab.fn_refresh_theme()
             self.assertIn('Seed received',label.text())
-        self.assertEqual(len(self.bus.sent),1)
+        self.assertEqual(len(self.bus.sent),0)
         panel.table.item(0,panel.COL_REQUEST).setText('27 02 11 22')
         self.assertFalse(panel.table.cellWidget(0,panel.COL_SEND).isEnabled())
         panel._request_step(panel.step_ids[0])
-        self.assertEqual(len(self.bus.sent),1)
+        self.assertEqual(len(self.bus.sent),0)
         self.assertFalse(controller.security_session.has_seed)
 
     def test_disconnect_and_document_switch_clear_seed(self):
@@ -76,7 +80,7 @@ class SecurityAccessGuiTests(unittest.TestCase):
             DiagnosticStep(2,'EPS','EPS','22 F1 90',expected_response='62 F1 90')]))
         self.receive_seed()
         panel.table.cellWidget(1,panel.COL_SEND).click()
-        self.wait(lambda:len(self.bus.sent)==2)
+        self.wait(lambda:len(self.bus.sent)==1)
         self.assertFalse(self.tab.diagnostic_controller.security_session.has_seed)
 
     def test_stored_seed_expires_without_user_action(self):
@@ -92,7 +96,7 @@ class SecurityAccessGuiTests(unittest.TestCase):
         panel.table.item(0,panel.COL_REQUEST).setText('10 03')
         self.bus.mode='silent'
         with patch.object(QMessageBox,'question',return_value=QMessageBox.Yes): self.click()
-        self.wait(lambda:len(self.bus.sent)==2)
+        self.wait(lambda:len(self.bus.sent)==1)
         self.assertFalse(self.tab.diagnostic_controller.security_session.has_seed)
         panel.table.item(0,panel.COL_REQUEST).setText('27 01')
         self.wait(lambda:not self.tab._connection_task.diagnostic_busy)

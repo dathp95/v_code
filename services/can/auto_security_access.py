@@ -3,7 +3,7 @@ from dataclasses import dataclass, replace
 from uuid import uuid4
 import time
 
-from core.diagnostic_request import SECURITY_LEVELS, DiagnosticOutcome as Outcome
+from core.diagnostic_request import SECURITY_LEVELS, DiagnosticOutcome as Outcome, is_security_seed_payload
 from core.security_submission import is_key_submission
 
 
@@ -27,7 +27,7 @@ class AutoSecurityAccessL1:
     """Composite protocol state for automated UDS SecurityAccess (L1..L4)."""
     def __init__(self, logical_request, *, clock=time.monotonic):
         if not self.matches(logical_request):
-            raise ValueError('Auto SecurityAccess requires a valid request (27 01, 27 03, 27 05, 27 07) with expected unlock response.')
+            raise ValueError('Auto SecurityAccess requires a valid request (27 01, 27 03, 27 05 or 27 07).')
         self.logical_request = logical_request
         self.subfunction = logical_request.uds_payload[1]
         cfg = SECURITY_LEVELS[self.subfunction]
@@ -48,16 +48,8 @@ class AutoSecurityAccessL1:
 
     @staticmethod
     def matches(request):
-        if not hasattr(request, 'uds_payload') or not isinstance(request.uds_payload, bytes) or len(request.uds_payload) != 2:
-            return False
-        if request.uds_payload[0] != 0x27:
-            return False
-        subfunc = request.uds_payload[1]
-        if subfunc not in SECURITY_LEVELS:
-            return False
-        expected = getattr(request, 'expected', b'')
-        expected_unlock = bytes([0x67, SECURITY_LEVELS[subfunc]["send_key"]])
-        return expected == expected_unlock
+        """Every seed request (27 01/03/05/07) is an Auto workflow; the Expected Response column is ignored."""
+        return is_security_seed_payload(getattr(request, 'uds_payload', None))
 
     @property
     def expired(self):
