@@ -513,6 +513,104 @@ class CanDiagnosticTableUiTests(unittest.TestCase):
         dialog.editor.setPlainText('1\tname\tBCM\t22 F1 90\n')  # Typing again clears the old message.
         self.assertEqual(dialog.status.text(), '')
 
+    # --- Filter: text box + result combo ----------------------------------------
+    def filter_panel(self):
+        """Four rows with distinct content in every field."""
+        panel = self.cursor_panel(['BCM', 'BMS', 'SS', 'BCM'])
+        values = [('Read VIN', 'battery low', '22 F1 90', 100, 1), ('Start', 'check cell', '10 03', 250, 2),
+                  ('ODO', 'mileage', '22 F1 21', 100, 1), ('Reset', '', '11 01', 500, 3)]
+        steps = [DiagnosticStep(i, name, ecu, request, delay, repeat, comment=comment)
+                 for i, ((name, comment, request, delay, repeat), ecu)
+                 in enumerate(zip(values, ['BCM', 'BMS', 'SS', 'BCM']), 1)]
+        panel.fn_load_sequence(DiagnosticTestCase(1, 'T', '', True, steps))
+        self.app.processEvents()
+        return panel
+
+    def visible(self, panel):
+        return [row for row in range(panel.table.rowCount()) if not panel.table.isRowHidden(row)]
+
+    def test_filter_box_and_result_combo_sit_after_setting_in_the_toolbar(self):
+        panel = self.make_panel(1)
+        self.app.processEvents()
+        toolbar = panel.layout().itemAt(0)
+        widgets = [toolbar.itemAt(i).widget() for i in range(toolbar.count())]
+        order = [w for w in widgets if w in (panel.btn_delete, panel.btn_settings, panel.edt_filter, panel.cmb_result_filter)]
+        self.assertEqual(order, [panel.btn_delete, panel.btn_settings, panel.edt_filter, panel.cmb_result_filter])
+        for widget in (panel.edt_filter, panel.cmb_result_filter):
+            self.assertGreaterEqual(widget.height(), 40)
+        self.assertEqual([panel.cmb_result_filter.itemText(i) for i in range(4)], ['All results', 'Passed', 'Failed', 'Timeout'])
+        self.assertTrue(panel.edt_filter.placeholderText())
+
+    def test_typing_in_the_filter_keeps_rows_matching_any_field(self):
+        panel = self.filter_panel()
+        panel.set_step_result(panel.step_ids[2], '62 F1 21 41 42', 'Passed')
+        ids = tuple(panel.step_ids)
+        for text, expected in (('bms', [1]),            # ECU
+                               ('read vin', [0]),       # name, any case
+                               ('MILEAGE', [2]),        # comment
+                               ('f190', [0]),           # HEX without spaces matches "22 F1 90"
+                               ('22 f1', [0, 2]),       # payload
+                               ('500', [3]),            # delay
+                               ('4142', [2]),           # received data
+                               ('passed', [2]),         # result
+                               ('nothing like this', []),
+                               ('  ', [0, 1, 2, 3]),
+                               ('', [0, 1, 2, 3])):
+            panel.edt_filter.setText(text)
+            self.assertEqual(self.visible(panel), expected, text)
+        self.assertEqual(tuple(panel.step_ids), ids)  # Filtering never touches the data.
+        self.assertFalse(panel.fn_is_dirty())
+
+    def test_result_combo_is_inactive_until_a_result_exists_then_filters_by_it(self):
+        panel = self.filter_panel()
+        combo = panel.cmb_result_filter
+        self.assertFalse(combo.isEnabled())
+        panel.set_step_result(panel.step_ids[0], '', 'Running')  # Not a result yet.
+        self.assertFalse(combo.isEnabled())
+        panel.set_step_result(panel.step_ids[0], '62 F1 90', 'Passed')
+        panel.set_step_result(panel.step_ids[1], '7F 10 22', 'Error')       # shown as Failed
+        panel.set_step_result(panel.step_ids[2], '', 'Timeout')
+        panel.set_step_result(panel.step_ids[3], '62 11', 'Not Evaluated')  # shown as Passed
+        self.assertTrue(combo.isEnabled())
+        for label, expected in (('Passed', [0, 3]), ('Failed', [1]), ('Timeout', [2]), ('All results', [0, 1, 2, 3])):
+            combo.setCurrentIndex(combo.findText(label))
+            self.assertEqual(self.visible(panel), expected, label)
+        combo.setCurrentIndex(combo.findText('Passed'))
+        panel.edt_filter.setText('bcm')  # Both filters must hold.
+        self.assertEqual(self.visible(panel), [0, 3])
+        panel.edt_filter.setText('read')
+        self.assertEqual(self.visible(panel), [0])
+        panel.reset_runtime_results()  # No results any more: combo off and back on "All results".
+        self.assertFalse(combo.isEnabled())
+        self.assertEqual(combo.currentIndex(), 0)
+        self.assertEqual(self.visible(panel), [0])  # The text filter still applies.
+
+    def test_restored_results_re_enable_the_result_combo(self):
+        panel = self.filter_panel()
+        panel.set_step_result(panel.step_ids[0], '62 F1 90', 'Failed')
+        snapshot = panel.runtime_snapshot()
+        panel.fn_load_sequence(panel.fn_current_sequence())  # A fresh load has no results...
+        self.assertFalse(panel.cmb_result_filter.isEnabled())
+        panel.restore_runtime_snapshot(snapshot)  # ...until the earlier ones are put back.
+        self.assertTrue(panel.cmb_result_filter.isEnabled())
+        panel.cmb_result_filter.setCurrentIndex(panel.cmb_result_filter.findText('Failed'))
+        self.assertEqual(self.visible(panel), [0])
+
+    def test_filter_survives_the_table_being_rebuilt_but_never_hides_a_row_being_edited(self):
+        panel = self.filter_panel()
+        panel.edt_filter.setText('bcm')
+        self.assertEqual(self.visible(panel), [0, 3])
+        panel.table.item(0, panel.COL_COMMENT).setText('typed: no longer matches')
+        panel.table.item(0, panel.COL_SEQUENCE_NAME).setText('zzz')
+        self.assertEqual(self.visible(panel), [0, 3])  # Still on screen while you edit it.
+        panel.spn_loop.setValue(2)
+        panel.table.selectRow(0)
+        panel.cmb_import_ecu.setCurrentIndex(0)  # Blank entry: keep every ECU.
+        panel.btn_import_delay.click()  # Rebuilds every row...
+        self.assertEqual(self.visible(panel), [0, 3])  # ...and the filter is applied again.
+        panel.edt_filter.setText('')
+        self.assertEqual(self.visible(panel), [0, 1, 2, 3])
+
     # --- Loop / Delay are a remembered preference, not sequence data ----------
     def test_settings_strip_values_never_touch_the_sequence_and_are_announced(self):
         panel = self.cursor_panel(['BCM', 'BMS'])

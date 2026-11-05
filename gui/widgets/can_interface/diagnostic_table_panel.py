@@ -28,6 +28,7 @@ from gui.widgets.controls.action_button import ActionButton
 from gui.widgets.controls.primary_combobox import PrimaryComboBox
 
 from gui.widgets.controls.primary_label import PrimaryLabel
+from gui.widgets.controls.primary_lineedit import PrimaryLineEdit
 from gui.widgets.controls.secondary_button import SecondaryButton
 
 from gui.widgets.diagnostic.diagnostic_sequence_table import DiagnosticSequenceTable
@@ -717,6 +718,34 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         toolbar.addWidget(self.btn_settings)
 
+        # Filter: free text over every field of a row, plus a quick Passed / Failed / Timeout filter.
+
+        self.edt_filter = PrimaryLineEdit("Filter...")
+
+        self.edt_filter.setClearButtonEnabled(True)
+
+        self.edt_filter.setMinimumSize(180, TOOLBAR_HEIGHT)
+
+        self.edt_filter.setMaximumWidth(340)
+
+        self.edt_filter.textChanged.connect(self._apply_filter)
+
+        toolbar.addWidget(self.edt_filter, 1)
+
+        self.cmb_result_filter = PrimaryComboBox(minimum_height=TOOLBAR_HEIGHT)
+
+        self.cmb_result_filter.setMinimumWidth(130)
+
+        for label, value in (("All results", ""), ("Passed", "Passed"), ("Failed", "Failed"), ("Timeout", "Timeout")):
+
+            self.cmb_result_filter.addItem(label, value)
+
+        self.cmb_result_filter.setEnabled(False)
+
+        self.cmb_result_filter.currentIndexChanged.connect(self._apply_filter)
+
+        toolbar.addWidget(self.cmb_result_filter)
+
         toolbar.addStretch(1)
 
         # The first header section is a working "select all" check box.
@@ -1095,6 +1124,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
                 self._render_runtime(row)
 
+        self._apply_filter()
+
     def invalidate_step_result(self, key):
 
         self._auto_comments.pop(key, None)
@@ -1110,6 +1141,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
                 self._render_runtime(row)
 
                 self._set_button_state(row)
+
+        self._apply_filter()
 
         self.runtime_changed.emit()
 
@@ -1330,6 +1363,71 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         self.row_selected.emit(self.selected_step_id())
 
+    def _filter_text(self, row, step, receive, label):
+
+        return " ".join(str(part) for part in (
+            step.step, step.sequence_name, step.ecu, step.request,
+            "" if step.delay_ms is None else step.delay_ms, step.repeat,
+            step.expected_response, receive, "" if label == NO_RESULT else label, step.comment))
+
+    def _apply_filter(self, *_):
+
+        """Show only rows matching the text box (any field) and the result combo; data is never touched."""
+
+        if getattr(self, "edt_filter", None) is None:
+
+            return
+
+        steps = self._test_case.steps if self._test_case is not None else ()
+
+        runtime = [self._runtime.get(key, ("", "", "")) for key in self.step_ids]
+
+        labels = [result_label(outcome) for _payload, outcome, _detail in runtime]
+
+        combo = self.cmb_result_filter
+
+        has_results = any(label != NO_RESULT for label in labels)
+
+        if not has_results and combo.currentIndex() != 0:
+
+            with QSignalBlocker(combo):
+
+                combo.setCurrentIndex(0)
+
+        combo.setEnabled(has_results)
+
+        wanted = combo.currentData() or ""
+
+        needle = self.edt_filter.text().strip().lower()
+
+        compact = "".join(needle.split())
+
+        for row in range(self.table.rowCount()):
+
+            visible = True
+
+            if row < len(steps) and row < len(labels):
+
+                if wanted and labels[row] != wanted:
+
+                    visible = False
+
+                elif needle:
+
+                    haystack = self._filter_text(row, steps[row], runtime[row][0], labels[row]).lower()
+
+                    # "22f190" also finds "22 F1 90".
+
+                    visible = needle in haystack or compact in "".join(haystack.split())
+
+            self.table.setRowHidden(row, not visible)
+
+    def _reload_steps_into_table(self):
+
+        super()._reload_steps_into_table()
+
+        self._apply_filter()
+
     def runtime_for_id(self, key):
 
         """(Passed / Failed / Timeout or "", received payload or "") of a row: what the table shows."""
@@ -1398,6 +1496,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
             self._render_runtime(self.step_ids.index(key))
 
+        self._apply_filter()
+
         self.runtime_changed.emit()
 
         return True
@@ -1459,6 +1559,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
             for row in range(self.table.rowCount()):
 
                 self._render_runtime(row)
+
+        self._apply_filter()
 
         self.runtime_changed.emit()
 
@@ -2312,6 +2414,12 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         with QSignalBlocker(self.table):
             super().fn_refresh_theme()
+
+            self.edt_filter.fn_refresh_theme()
+
+            self.cmb_result_filter.fn_refresh_theme()
+
+            fn_apply_scrollbar_style(self.cmb_result_filter.view())
 
             self.lbl_import_ecu.fn_refresh_theme()
 
