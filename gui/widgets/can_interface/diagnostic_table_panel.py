@@ -523,7 +523,7 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
     selected_rows_changed = Signal(tuple)
 
-    import_settings_changed = Signal(int, int, str)
+    import_settings_changed = Signal(int, int)
 
     save_requested = Signal()
 
@@ -556,8 +556,6 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         self.step_ids = []
 
         self._checked = set()
-
-        self._preferred_import_ecu = ""
 
         self._applying_import_settings = False
 
@@ -602,6 +600,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         self.cmb_import_ecu.setMinimumWidth(160)
 
+        self.cmb_import_ecu.setPlaceholderText("No ECU")
+
         import_index = self.execution_layout.indexOf(self.btn_import_delay)
 
         self.execution_layout.insertSpacing(import_index, 12)
@@ -621,8 +621,6 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         self.execution_layout.insertWidget(self.execution_layout.indexOf(self.btn_import_delay) + 1, self.btn_import_undo)
 
         self._refresh_import_ecu_combo()
-
-        self.cmb_import_ecu.currentIndexChanged.connect(self._on_import_ecu_changed)
 
         self.title = PrimaryLabel("Select a sequence")
 
@@ -1318,6 +1316,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
     def _selection_changed(self, *_):
 
+        self._sync_import_ecu_with_cursor()
+
         self.row_selected.emit(self.selected_step_id())
 
     def step_for_id(self, key):
@@ -1652,26 +1652,15 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         self._emit_import_settings()
 
-    def _on_import_ecu_changed(self, _index):
-
-        if self._applying_import_settings or not self.cmb_import_ecu.isEnabled():
-
-            return
-
-        self._preferred_import_ecu = self.cmb_import_ecu.currentData() or ""
-
-        self._emit_import_settings()
-
     def _emit_import_settings(self):
 
         if not self._applying_import_settings:
 
-            self.import_settings_changed.emit(
-                self.spn_loop.value(), self.spn_command_delay.value(), self._preferred_import_ecu)
+            self.import_settings_changed.emit(self.spn_loop.value(), self.spn_command_delay.value())
 
-    def apply_import_settings(self, loop=None, delay_ms=None, ecu=None):
+    def apply_import_settings(self, loop=None, delay_ms=None):
 
-        """Restore remembered values without announcing them as a user change."""
+        """Restore remembered Loop / Delay without announcing them as a user change."""
 
         self._applying_import_settings = True
 
@@ -1684,12 +1673,6 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
             if delay_ms is not None:
 
                 self.spn_command_delay.setValue(delay_ms)
-
-            if ecu is not None:
-
-                self._preferred_import_ecu = ecu
-
-                self._refresh_import_ecu_combo()
 
         finally:
 
@@ -1717,23 +1700,43 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
                 combo.addItem(name, name)
 
-            if names:
-
-                # The remembered ECU wins; an ECU this Vehicle lacks falls back to the first one.
-
-                combo.setCurrentIndex(max(combo.findData(self._preferred_import_ecu), 0))
-
-            else:
+            if not names:
 
                 # Without a Vehicle (or ECUs) there is nothing to import: say why, never show an empty list.
 
                 combo.addItem("Select Vehicle first" if self._current_vehicle is None else "No ECU available", None)
 
+                # A placeholder keeps Qt from selecting the first item on its own.
+
+                combo.setCurrentIndex(0)
+
         combo.setEnabled(bool(names))
 
         self.btn_import_delay.setEnabled(bool(names))
 
+        self._sync_import_ecu_with_cursor()
+
         fn_apply_scrollbar_style(combo.view())
+
+    def _sync_import_ecu_with_cursor(self):
+
+        """The ECU box always shows the ECU of the row under the cursor (nothing if it has none)."""
+
+        combo = self.cmb_import_ecu
+
+        if not combo.isEnabled():
+
+            return
+
+        row = self.table.currentRow()
+
+        steps = self._test_case.steps if self._test_case is not None else ()
+
+        ecu = steps[row].ecu if 0 <= row < len(steps) else ""
+
+        with QSignalBlocker(combo):
+
+            combo.setCurrentIndex(combo.findData(ecu) if ecu else -1)
 
     def fn_import_execution_values_to_rows(self):
 
@@ -1745,7 +1748,11 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         checked_rows = {row for row, key in enumerate(self.step_ids) if key in self._checked}
 
-        cursor_rows = set(self._selected_rows())
+        current = self.table.currentRow()
+
+        # The ECU box mirrors the cursor row, so importing it only ever touches that row.
+
+        cursor_rows = {current} if 0 <= current < len(self.step_ids) else set()
 
         ecu = self.cmb_import_ecu.currentData() or ""
 
@@ -1835,24 +1842,31 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
     def _apply_import_steps(self, steps):
 
+        current = self.table.currentRow()
+
         cursor_rows = self._selected_rows()
 
         self._replace_steps(steps)
 
         self._reload_steps_into_table()
 
-        # Reloading rebuilds the table: put the cursor selection back where it was.
+        # Reloading rebuilds the table: put the cursor and its selection back where they were.
 
         selection = self.table.selectionModel()
 
+        model = self.table.model()
+
+        if 0 <= current < self.table.rowCount():
+
+            selection.setCurrentIndex(model.index(current, self.COL_STEP), QItemSelectionModel.NoUpdate)
+
         for row in cursor_rows:
 
-            selection.select(
-                self.table.model().index(row, self.COL_STEP),
-                QItemSelectionModel.Select | QItemSelectionModel.Rows,
-            )
+            selection.select(model.index(row, self.COL_STEP), QItemSelectionModel.Select | QItemSelectionModel.Rows)
 
         self._mark_dirty()
+
+        self._sync_import_ecu_with_cursor()
 
     def _refresh_ecu_combos(self):
 
@@ -2088,6 +2102,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
             self._replace_steps(steps)
 
             self._mark_dirty()
+
+            self._sync_import_ecu_with_cursor()
 
     def _apply_diag_ecu_mapping(self):
 

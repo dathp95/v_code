@@ -14,7 +14,7 @@ class CanInterfaceUiState:
     selected_id: str = ""
     vehicles: dict[str, str] = field(default_factory=dict)
     sources: tuple[str, ...] = ()
-    # Settings strip (Loop / Delay / ECU used by Import), remembered between runs.
+    # Settings strip (Loop / Delay used by Import), remembered between runs. The ECU box follows the cursor row.
     import_settings: dict = field(default_factory=dict)
 
 
@@ -23,13 +23,11 @@ def _valid_import_settings(value):
     if not isinstance(value, dict):
         return {}
     cleaned = {}
-    loop, delay_ms, ecu = value.get("loop"), value.get("delay_ms"), value.get("ecu")
+    loop, delay_ms = value.get("loop"), value.get("delay_ms")
     if type(loop) is int and 1 <= loop <= 9999:
         cleaned["loop"] = loop
     if type(delay_ms) is int and 0 <= delay_ms <= 60000:
         cleaned["delay_ms"] = delay_ms
-    if isinstance(ecu, str):
-        cleaned["ecu"] = ecu
     return cleaned
 
 
@@ -79,8 +77,8 @@ class CanInterfaceUiStore:
         sources = tuple(dict.fromkeys((*state.sources, source_id))) if source_id else state.sources
         self._save(replace(state, selected_id=source_id, sources=sources))
 
-    def save_import_settings(self, loop, delay_ms, ecu):
-        self._save(replace(self.load(), import_settings=_valid_import_settings(dict(loop=loop, delay_ms=delay_ms, ecu=ecu))))
+    def save_import_settings(self, loop, delay_ms):
+        self._save(replace(self.load(), import_settings=_valid_import_settings(dict(loop=loop, delay_ms=delay_ms))))
 
     def save_vehicle(self, source_id, vehicle_name):
         state = self.load()

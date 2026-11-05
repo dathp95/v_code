@@ -876,9 +876,9 @@ class CanWorkspaceController(QObject):
         )
         return result
 
-    def _save_import_settings(self, loop, delay_ms, ecu):
+    def _save_import_settings(self, loop, delay_ms):
         try:
-            self.store.save_import_settings(loop, delay_ms, ecu)
+            self.store.save_import_settings(loop, delay_ms)
         except OSError as error:
             self.panel.show_notice(f"Cannot save import settings: {error}")
 

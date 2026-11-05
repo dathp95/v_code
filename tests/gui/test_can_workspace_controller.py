@@ -165,8 +165,8 @@ class CanWorkspaceControllerTests(unittest.TestCase):
             controller.open_source(str(source))
             panel.spn_loop.setValue(4)
             panel.spn_command_delay.setValue(700)
-            panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('EPS'))
             panel.table.selectRow(0)  # ECU goes to the cursor row; Loop and Delay to every checked row.
+            panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('EPS'))
             panel.btn_import_delay.click()
             self.assertIsNotNone(controller.save_sequence())
             # "Restart": brand-new objects reading the same files.
@@ -186,15 +186,13 @@ class CanWorkspaceControllerTests(unittest.TestCase):
             controller.open_source(str(source))
             panel.spn_loop.setValue(6)
             panel.spn_command_delay.setValue(800)
-            panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('EPS'))
             self.assertFalse(panel.fn_is_dirty())
             saved=json.loads((root/'prefs').read_text(encoding='utf-8'))
-            self.assertEqual(saved['import_settings'],{'loop':6,'delay_ms':800,'ecu':'EPS'})
+            self.assertEqual(saved['import_settings'],{'loop':6,'delay_ms':800})  # The ECU follows the cursor row.
             self.assertIn('selected_id',saved)  # The other preferences are kept next to it.
             # "Restart": brand-new objects reading the same preference file.
             controller2,panel2=self.session(root)
             self.assertEqual((panel2.spn_loop.value(),panel2.spn_command_delay.value()),(6,800))
-            self.assertEqual(panel2.cmb_import_ecu.currentText(),'EPS')
             controller2.open_source(str(source))  # The sequence file says loop 1 / delay 100: irrelevant.
             self.assertEqual((panel2.spn_loop.value(),panel2.spn_command_delay.value()),(6,800))
             self.assertFalse(panel2.fn_is_dirty())

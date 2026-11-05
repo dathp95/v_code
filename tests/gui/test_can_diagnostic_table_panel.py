@@ -159,20 +159,39 @@ class CanDiagnosticTableUiTests(unittest.TestCase):
                 QItemSelectionModel.Select | QItemSelectionModel.Rows)
         self.app.processEvents()
 
+    VEHICLE_ECUS = (('BCM', '681', '601'), ('BMS', '682', '602'), ('SS', '683', '603'))
+
+    def cursor_panel(self, row_ecus, select_vehicle=True):
+        """A panel whose rows carry the given ECU names (all checked), on a Vehicle with BCM, BMS and SS."""
+        from gui.widgets.can_interface.diagnostic_table_panel import CanDiagnosticTablePanel
+        vehicle = Vehicle('BENCH', ecus=[ECU(*values) for values in self.VEHICLE_ECUS])
+        panel = CanDiagnosticTablePanel(vehicle_service=SimpleNamespace(list_vehicles=lambda: ['BENCH'], load_vehicle=lambda _: vehicle))
+        self.addCleanup(panel.deleteLater)
+        panel.resize(1500, 500)
+        panel.show()
+        panel.fn_load_sequence(DiagnosticTestCase(1, 'TEST', '', True,
+            [DiagnosticStep(i, '', ecu, '22 F1 90') for i, ecu in enumerate(row_ecus, 1)]))
+        if select_vehicle:
+            panel.vehicle_selector.fn_set_vehicle('BENCH')
+        self.app.processEvents()
+        return panel
+
+    def rows(self, panel):
+        return [(s.ecu, s.repeat, s.delay_ms) for s in panel.fn_current_sequence().steps]
+
+    def combo_items(self, panel):
+        return [panel.cmb_import_ecu.itemText(i) for i in range(panel.cmb_import_ecu.count())]
+
     def test_import_ecu_combo_and_button_need_a_vehicle_then_list_its_ecus(self):
-        panel = self.make_panel(2, ecus=[ECU('BCM', '681', '601'), ECU('BMS', '682', '602')])
+        panel = self.cursor_panel(['BCM', 'BMS'], select_vehicle=False)
         combo = panel.cmb_import_ecu
         self.assertFalse(combo.isEnabled())  # No Vehicle yet: a hint, never an empty list.
         self.assertFalse(panel.btn_import_delay.isEnabled())
-        self.assertEqual([combo.itemText(i) for i in range(combo.count())], ['Select Vehicle first'])
+        self.assertEqual(self.combo_items(panel), ['Select Vehicle first'])
         panel.vehicle_selector.fn_set_vehicle('BENCH')
         self.assertTrue(combo.isEnabled())
         self.assertTrue(panel.btn_import_delay.isEnabled())
-        self.assertEqual([combo.itemText(i) for i in range(combo.count())], ['BCM', 'BMS'])  # No "keep" entry.
-        self.assertEqual(combo.currentText(), 'BCM')
-        combo.setCurrentIndex(1)
-        panel.fn_refresh_theme()
-        self.assertEqual(combo.currentText(), 'BMS')
+        self.assertEqual(self.combo_items(panel), ['BCM', 'BMS', 'SS'])  # No "keep" entry.
         panel.fn_set_vehicle(None)
         self.assertFalse(combo.isEnabled())
         self.assertFalse(panel.btn_import_delay.isEnabled())
@@ -187,72 +206,87 @@ class CanDiagnosticTableUiTests(unittest.TestCase):
         self.assertEqual(panel.btn_import_undo.text(), 'Undo')
         self.assertFalse(panel.btn_import_undo.isEnabled())  # Nothing to undo yet.
 
-    def two_ecu_panel(self, count):
-        panel = self.make_panel(count, ecus=[ECU('BCM', '681', '601'), ECU('BMS', '682', '602')])
-        panel.vehicle_selector.fn_set_vehicle('BENCH')
-        return panel
+    # --- the ECU box mirrors the row under the cursor ------------------------
+    def test_ecu_combo_shows_the_ecu_of_the_row_under_the_cursor(self):
+        panel = self.cursor_panel(['BCM', 'BMS', 'SS', 'GHOST'])
+        combo = panel.cmb_import_ecu
+        for row, expected in ((2, 'SS'), (0, 'BCM'), (1, 'BMS')):
+            panel.table.selectRow(row)
+            self.assertEqual(combo.currentText(), expected, row)
+        panel.table.selectRow(3)  # The row's ECU is not an ECU of the Vehicle: nothing is selected.
+        self.assertEqual(combo.currentIndex(), -1)
+        panel.table.selectRow(0)
+        panel.table.cellWidget(0, panel.COL_ECU).setCurrentIndex(panel.table.cellWidget(0, panel.COL_ECU).findText('SS'))
+        self.assertEqual(combo.currentText(), 'SS')  # Follows an ECU edit of that same row.
 
-    def rows(self, panel):
-        return [(s.ecu, s.repeat, s.delay_ms) for s in panel.fn_current_sequence().steps]
-
-    def test_import_sets_loop_and_delay_on_checked_rows_but_ecu_only_on_the_cursor_row(self):
-        panel = self.two_ecu_panel(3)
+    def test_import_keeps_every_ecu_when_the_ecu_box_is_left_on_the_cursor_rows_ecu(self):
+        panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
         ids = tuple(panel.step_ids)
         panel.set_step_result(ids[1], '62 F1 90', 'Passed')
-        panel.spn_loop.setValue(3)
-        panel.spn_command_delay.setValue(250)
-        panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('BMS'))
+        panel.spn_loop.setValue(4)
+        panel.spn_command_delay.setValue(500)
         panel.table.item(1, panel.COL_CHECK).setCheckState(Qt.Unchecked)
-        panel.table.selectRow(2)  # The cursor row: the only one whose ECU changes.
+        panel.table.selectRow(2)
+        self.assertEqual(panel.cmb_import_ecu.currentText(), 'SS')  # Not BCM: it is the cursor row's ECU.
         panel._is_dirty = False
         panel.btn_import_delay.click()
-        self.assertEqual(self.rows(panel), [('TEST', 3, 250), ('TEST', 1, 100), ('BMS', 3, 250)])
+        self.assertEqual(self.rows(panel), [('BCM', 4, 500), ('BMS', 1, 100), ('SS', 4, 500)])
         self.assertEqual(tuple(panel.step_ids), ids)
         self.assertEqual(panel.checked_step_ids(), (ids[0], ids[2]))  # Ticks survive the import.
-        self.assertEqual(panel.table.cellWidget(2, panel.COL_ECU).currentText(), 'BMS')
-        self.assertIn(ids[1], panel._runtime)  # The untouched row keeps its result.
-        self.assertEqual(panel._selected_rows(), [2])
+        self.assertIn(ids[1], panel._runtime)  # The unchecked row keeps its result.
+        self.assertEqual(panel.table.currentRow(), 2)
+        self.assertEqual(panel.cmb_import_ecu.currentText(), 'SS')
         self.assertTrue(panel.fn_is_dirty())
 
-    def test_import_reaches_all_rows_with_loop_and_delay_when_all_are_checked(self):
-        panel = self.two_ecu_panel(6)
+    def test_import_writes_a_deliberately_chosen_ecu_to_the_cursor_row_only(self):
+        panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
         panel.spn_loop.setValue(2)
-        panel.spn_command_delay.setValue(400)
-        panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('BMS'))
-        self.assertEqual(len(panel.checked_step_ids()), 6)
-        panel.table.selectRow(0)
+        panel.table.selectRow(1)
+        panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('SS'))
         panel.btn_import_delay.click()
-        self.assertEqual(self.rows(panel), [('BMS', 2, 400)] + [('TEST', 2, 400)] * 5)
+        self.assertEqual(self.rows(panel), [('BCM', 2, 100), ('SS', 2, 100), ('SS', 2, 100)])
+        panel.table.selectRow(0)
+        self.assertEqual(panel.cmb_import_ecu.currentText(), 'BCM')
 
     def test_import_with_only_a_cursor_row_changes_just_its_ecu(self):
-        panel = self.two_ecu_panel(3)
-        panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('BMS'))
+        panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
         panel.spn_loop.setValue(5)
         panel.set_all_checked(False)
         panel.table.selectRow(1)
+        panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('SS'))
         panel.btn_import_delay.click()
-        self.assertEqual(self.rows(panel), [('TEST', 1, 100), ('BMS', 1, 100), ('TEST', 1, 100)])
+        self.assertEqual(self.rows(panel), [('BCM', 1, 100), ('SS', 1, 100), ('SS', 1, 100)])
+
+    def test_import_never_writes_an_ecu_when_the_cursor_row_has_none_selected_in_the_box(self):
+        panel = self.cursor_panel(['BCM', 'GHOST'])
+        panel.spn_loop.setValue(3)
+        panel.table.item(0, panel.COL_CHECK).setCheckState(Qt.Unchecked)
+        panel.table.selectRow(1)
+        self.assertEqual(panel.cmb_import_ecu.currentIndex(), -1)
+        panel.btn_import_delay.click()
+        self.assertEqual(self.rows(panel), [('BCM', 1, 100), ('GHOST', 3, 100)])
 
     def test_import_with_nothing_checked_or_selected_changes_nothing_and_says_so(self):
-        panel = self.two_ecu_panel(2)
+        panel = self.cursor_panel(['BCM', 'BMS'])
         panel.spn_loop.setValue(5)
         panel.set_all_checked(False)
         panel.table.clearSelection()
+        panel.table.setCurrentCell(-1, -1)
         panel._is_dirty = False
         panel.btn_import_delay.click()
-        self.assertEqual(self.rows(panel), [('TEST', 1, 100)] * 2)
+        self.assertEqual(self.rows(panel), [('BCM', 1, 100), ('BMS', 1, 100)])
         self.assertFalse(panel.fn_is_dirty())
         self.assertFalse(panel.btn_import_undo.isEnabled())
         self.assertIn('Check', panel.notice.text())
 
     # --- Undo -------------------------------------------------------------
     def test_undo_restores_the_state_before_each_import_step_by_step(self):
-        panel = self.two_ecu_panel(3)
+        panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
         original = self.rows(panel)
         panel.spn_loop.setValue(3)
         panel.spn_command_delay.setValue(250)
-        panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('BMS'))
         panel.table.selectRow(0)
+        panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('SS'))
         panel.btn_import_delay.click()
         first = self.rows(panel)
         self.assertNotEqual(first, original)
@@ -260,6 +294,7 @@ class CanDiagnosticTableUiTests(unittest.TestCase):
         panel.spn_loop.setValue(7)
         panel.spn_command_delay.setValue(900)
         panel.table.selectRow(2)
+        panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('BCM'))
         panel.btn_import_delay.click()
         second = self.rows(panel)
         panel.btn_import_undo.click()
@@ -271,69 +306,61 @@ class CanDiagnosticTableUiTests(unittest.TestCase):
         self.assertNotEqual(second, original)
 
     def test_undo_restores_only_what_import_changed_and_keeps_other_edits(self):
-        panel = self.two_ecu_panel(2)
+        panel = self.cursor_panel(['BCM', 'BMS'])
         ids = tuple(panel.step_ids)
         panel.spn_loop.setValue(4)
-        panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('BMS'))
         panel.table.selectRow(0)
+        panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('SS'))
         panel.btn_import_delay.click()
         panel.table.item(0, panel.COL_COMMENT).setText('typed after import')
         panel.table.item(1, panel.COL_REQUEST).setText('10 03')
         panel.btn_import_undo.click()
         steps = panel.fn_current_sequence().steps
-        self.assertEqual([(s.ecu, s.repeat) for s in steps], [('TEST', 1), ('TEST', 1)])
+        self.assertEqual([(s.ecu, s.repeat) for s in steps], [('BCM', 1), ('BMS', 1)])
         self.assertEqual((steps[0].comment, steps[1].request), ('typed after import', '10 03'))
         self.assertEqual(tuple(panel.step_ids), ids)
         self.assertTrue(panel.fn_is_dirty())
 
     def test_undo_survives_removed_rows_and_is_cleared_by_loading_a_sequence(self):
-        panel = self.two_ecu_panel(3)
+        panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
         panel.spn_loop.setValue(4)
         panel.btn_import_delay.click()
         panel.table.selectRow(0)
         panel.fn_remove_selected_step()
         panel.btn_import_undo.click()  # The removed row is skipped; the others are restored.
-        self.assertEqual([r for r in self.rows(panel)], [('TEST', 1, 100)] * 2)
+        self.assertEqual(self.rows(panel), [('BMS', 1, 100), ('SS', 1, 100)])
         self.assertFalse(panel.btn_import_undo.isEnabled())
         panel.btn_import_delay.click()
         self.assertTrue(panel.btn_import_undo.isEnabled())
         panel.fn_load_sequence(DiagnosticTestCase(1, 'OTHER', '', True, [DiagnosticStep(1, '', 'TEST', '22 F1 90')]))
         self.assertFalse(panel.btn_import_undo.isEnabled())
 
-    # --- Settings strip is a remembered preference, not sequence data -------
+    # --- Loop / Delay are a remembered preference, not sequence data ----------
     def test_settings_strip_values_never_touch_the_sequence_and_are_announced(self):
-        panel = self.make_panel(2, ecus=[ECU('BCM', '681', '601'), ECU('BMS', '682', '602')])
-        panel.vehicle_selector.fn_set_vehicle('BENCH')
+        panel = self.cursor_panel(['BCM', 'BMS'])
         announced = []
         panel.import_settings_changed.connect(lambda *values: announced.append(values))
         before = panel.fn_current_sequence().execution
         panel._is_dirty = False
         panel.spn_loop.setValue(6)
         panel.spn_command_delay.setValue(800)
-        panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('BMS'))
-        self.assertEqual(announced, [(6, 100, ''), (6, 800, ''), (6, 800, 'BMS')])
+        panel.cmb_import_ecu.setCurrentIndex(1)  # The ECU follows the cursor row: it is never remembered.
+        self.assertEqual(announced, [(6, 100), (6, 800)])
         self.assertEqual(panel.fn_current_sequence().execution, before)
         self.assertFalse(panel.fn_is_dirty())  # Adjusting the strip never enables Save.
-        panel.fn_load_sequence(DiagnosticTestCase(1, 'OTHER', '', True, [DiagnosticStep(1, '', 'TEST', '22 F1 90')]))
+        panel.fn_load_sequence(DiagnosticTestCase(1, 'OTHER', '', True, [DiagnosticStep(1, '', 'BCM', '22 F1 90')]))
         panel.fn_load_sequence(None)
         self.assertEqual((panel.spn_loop.value(), panel.spn_command_delay.value()), (6, 800))
-        self.assertEqual(panel.cmb_import_ecu.currentText(), 'BMS')
 
-    def test_apply_import_settings_restores_values_and_the_ecu_once_the_vehicle_is_known(self):
-        panel = self.make_panel(1, ecus=[ECU('BCM', '681', '601'), ECU('BMS', '682', '602')])
+    def test_apply_import_settings_restores_loop_and_delay_silently(self):
+        panel = self.make_panel(1)
         announced = []
         panel.import_settings_changed.connect(lambda *values: announced.append(values))
-        panel.apply_import_settings(loop=6, delay_ms=800, ecu='BMS')
+        panel.apply_import_settings(loop=6, delay_ms=800)
         self.assertEqual((panel.spn_loop.value(), panel.spn_command_delay.value()), (6, 800))
-        self.assertFalse(panel.cmb_import_ecu.isEnabled())
-        panel.vehicle_selector.fn_set_vehicle('BENCH')
-        self.assertEqual(panel.cmb_import_ecu.currentText(), 'BMS')
-        panel.fn_set_vehicle(None)  # The remembered ECU survives a Vehicle without it...
-        panel.vehicle_selector.fn_set_vehicle('BENCH')
-        self.assertEqual(panel.cmb_import_ecu.currentText(), 'BMS')
         self.assertEqual(announced, [])  # Restoring is not a user change, so nothing is re-saved.
-        panel.apply_import_settings(ecu='NOT_AN_ECU')  # ...and an unknown name falls back to the first ECU.
-        self.assertEqual(panel.cmb_import_ecu.currentText(), 'BCM')
+        panel.apply_import_settings(delay_ms=300)
+        self.assertEqual((panel.spn_loop.value(), panel.spn_command_delay.value()), (6, 300))
 
     # --- Results column ----------------------------------------------------
     def test_theme_owns_the_result_and_negative_response_colors(self):
