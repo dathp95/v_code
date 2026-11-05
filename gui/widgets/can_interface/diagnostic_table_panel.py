@@ -1701,6 +1701,12 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
             combo.clear()
 
+            if names:
+
+                # Blank entry = leave every ECU as it is (import only Loop and Delay).
+
+                combo.addItem("", None)
+
             for name in names:
 
                 combo.addItem(name, name)
@@ -1725,7 +1731,7 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
     def _sync_import_ecu_with_cursor(self):
 
-        """The ECU box always shows the ECU of the row under the cursor (nothing if it has none)."""
+        """The ECU box always shows the ECU of the row under the cursor (the blank entry if it has none)."""
 
         combo = self.cmb_import_ecu
 
@@ -1741,14 +1747,15 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         with QSignalBlocker(combo):
 
-            combo.setCurrentIndex(combo.findData(ecu) if ecu else -1)
+            combo.setCurrentIndex(max(combo.findData(ecu), 0) if ecu else 0)
 
     def fn_import_execution_values_to_rows(self):
 
         """Write Loop, Delay and the ECU shown in the box into every checked row.
 
         The ECU box starts on the ECU of the row under the cursor, so rows ending up with the same
-        ECU is the normal result; a cursor row with no ECU leaves every ECU untouched.
+        ECU is the normal result; the blank entry (also shown for a cursor row with no ECU)
+        leaves every ECU untouched.
         """
 
         if self._test_case is None or not self._test_case.steps:

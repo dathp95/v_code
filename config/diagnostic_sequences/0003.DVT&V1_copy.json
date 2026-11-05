@@ -1,0 +1,64 @@
+{
+    "schema_version": 1,
+    "name": "0003.DVT&V1_copy",
+    "description": "",
+    "enabled": true,
+    "execution": {
+        "loop": 1,
+        "command_delay_ms": 100
+    },
+    "steps": [
+        {
+            "step": 1,
+            "sequence_name": "Check Ignition ON",
+            "ecu": "BCM",
+            "request": " 22 F1 23",
+            "delay_ms": 100,
+            "repeat": 1,
+            "expected_response": "62 F1 23",
+            "match": "prefix",
+            "comment": "0x00=OFF (Comfort enable)|0x01=ACC (Park)|0x02=ON (Driver Present)|0x03=START (eMotor running)|0x04=SW Update OTA|0x05~0x06=reserved|0x07=invalid\"\"\"",
+            "source_request_id": 1665,
+            "source_response_id": 1537
+        },
+        {
+            "step": 2,
+            "sequence_name": "Status of Actual Gear",
+            "ecu": "IVC_SGC",
+            "request": " 22 01 44",
+            "delay_ms": 100,
+            "repeat": 1,
+            "expected_response": "62 01 44",
+            "match": "prefix",
+            "comment": "|00=P|01=R|02=N|03=D|07=Fault\"\"\"",
+            "source_request_id": 1666,
+            "source_response_id": 1538
+        },
+        {
+            "step": 3,
+            "sequence_name": "Check EPB status",
+            "ecu": "ESC",
+            "request": " 22 DD F0",
+            "delay_ms": 100,
+            "repeat": 1,
+            "expected_response": "62 DD F0",
+            "match": "prefix",
+            "comment": "00: Unknown|01: Released|02: Locked|03: Releasing|04: Locking",
+            "source_request_id": 1705,
+            "source_response_id": 1577
+        },
+        {
+            "step": 4,
+            "sequence_name": "System Speed and status Information",
+            "ecu": "ESC",
+            "request": " 22 30 07",
+            "delay_ms": 100,
+            "repeat": 1,
+            "expected_response": "62 30 07",
+            "match": "prefix",
+            "comment": "",
+            "source_request_id": 1705,
+            "source_response_id": 1577
+        }
+    ]
+}

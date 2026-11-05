@@ -252,7 +252,7 @@ class CanDiagnosticTableUiTests(unittest.TestCase):
         panel.vehicle_selector.fn_set_vehicle('BENCH')
         self.assertTrue(combo.isEnabled())
         self.assertTrue(panel.btn_import_delay.isEnabled())
-        self.assertEqual(self.combo_items(panel), ['BCM', 'BMS', 'SS'])  # No "keep" entry.
+        self.assertEqual(self.combo_items(panel), ['', 'BCM', 'BMS', 'SS'])  # The blank entry means: keep every ECU.
         panel.fn_set_vehicle(None)
         self.assertFalse(combo.isEnabled())
         self.assertFalse(panel.btn_import_delay.isEnabled())
@@ -274,8 +274,8 @@ class CanDiagnosticTableUiTests(unittest.TestCase):
         for row, expected in ((2, 'SS'), (0, 'BCM'), (1, 'BMS')):
             panel.table.selectRow(row)
             self.assertEqual(combo.currentText(), expected, row)
-        panel.table.selectRow(3)  # The row's ECU is not an ECU of the Vehicle: nothing is selected.
-        self.assertEqual(combo.currentIndex(), -1)
+        panel.table.selectRow(3)  # The row's ECU is not an ECU of the Vehicle: the blank entry is selected.
+        self.assertEqual((combo.currentIndex(), combo.currentText()), (0, ''))
         panel.table.selectRow(0)
         panel.table.cellWidget(0, panel.COL_ECU).setCurrentIndex(panel.table.cellWidget(0, panel.COL_ECU).findText('SS'))
         self.assertEqual(combo.currentText(), 'SS')  # Follows an ECU edit of that same row.
@@ -319,6 +319,18 @@ class CanDiagnosticTableUiTests(unittest.TestCase):
         panel.btn_import_delay.click()
         self.assertEqual(self.rows(panel), [('SS', 2, 100)] * 3)
 
+    def test_blank_ecu_entry_imports_loop_and_delay_while_keeping_every_ecu(self):
+        panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
+        panel.spn_loop.setValue(3)
+        panel.spn_command_delay.setValue(700)
+        panel.table.selectRow(1)
+        self.assertEqual(panel.cmb_import_ecu.currentText(), 'BMS')
+        panel.cmb_import_ecu.setCurrentIndex(0)  # The user picks the blank entry.
+        panel.btn_import_delay.click()
+        self.assertEqual(self.rows(panel), [('BCM', 3, 700), ('BMS', 3, 700), ('SS', 3, 700)])
+        panel.btn_import_undo.click()
+        self.assertEqual(self.rows(panel), [('BCM', 1, 100), ('BMS', 1, 100), ('SS', 1, 100)])
+
     def test_import_into_nothing_checked_changes_nothing_even_with_a_cursor_row(self):
         panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
         panel.spn_loop.setValue(5)
@@ -335,7 +347,7 @@ class CanDiagnosticTableUiTests(unittest.TestCase):
         panel.spn_loop.setValue(3)
         panel.table.item(0, panel.COL_CHECK).setCheckState(Qt.Unchecked)
         panel.table.selectRow(1)
-        self.assertEqual(panel.cmb_import_ecu.currentIndex(), -1)
+        self.assertEqual(panel.cmb_import_ecu.currentText(), '')
         panel.btn_import_delay.click()
         self.assertEqual(self.rows(panel), [('BCM', 1, 100), ('GHOST', 3, 100)])
 
