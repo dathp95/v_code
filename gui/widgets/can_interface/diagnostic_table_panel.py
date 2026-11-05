@@ -2098,9 +2098,11 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
     def apply_import(self, imported, mode):
 
-        if mode not in ('append', 'replace') or self._test_case is None:
+        """Put pasted rows below / above the cursor row ("append" = below), or replace the whole sequence."""
 
-            raise ValueError('Select an active document and explicit Append or Replace mode.')
+        if mode not in ('below', 'above', 'append', 'replace') or self._test_case is None:
+
+            raise ValueError('Select an active document and an explicit Append below/above or Replace mode.')
 
         if mode == 'replace':
 
@@ -2108,11 +2110,44 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         else:
 
-            self.step_ids.extend(uuid4().hex for _ in imported.steps)
+            steps = list(self._test_case.steps)
 
-            self._replace_steps([*self._test_case.steps, *imported.steps])
+            current = self.table.currentRow()
+
+            below = mode != 'above'
+
+            if 0 <= current < len(steps):
+
+                index = current + (1 if below else 0)
+
+            else:
+
+                index = len(steps) if below else 0
+
+            new_ids = [uuid4().hex for _ in imported.steps]
+
+            self.step_ids[index:index] = new_ids
+
+            self._checked.update(new_ids)
+
+            self._replace_steps([*steps[:index], *imported.steps, *steps[index:]])
 
             self._reload_steps_into_table()
+
+            self._refresh_check_all()
+
+            # Highlight what was just added, with the cursor on its first row.
+
+            selection = self.table.selectionModel()
+
+            model = self.table.model()
+
+            selection.setCurrentIndex(
+                model.index(index, self.COL_STEP), QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows)
+
+            for row in range(index + 1, index + len(new_ids)):
+
+                selection.select(model.index(row, self.COL_STEP), QItemSelectionModel.Select | QItemSelectionModel.Rows)
 
         self.import_diagnostics = imported.diagnostics
 

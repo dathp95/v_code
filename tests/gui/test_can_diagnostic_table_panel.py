@@ -420,6 +420,99 @@ class CanDiagnosticTableUiTests(unittest.TestCase):
         panel.fn_load_sequence(DiagnosticTestCase(1, 'OTHER', '', True, [DiagnosticStep(1, '', 'TEST', '22 F1 90')]))
         self.assertFalse(panel.btn_import_undo.isEnabled())
 
+    # --- Import SEQ: where the rows go ---------------------------------------
+    def imported(self, *names):
+        from core.sequence_exchange import export_sequence_text, parse_sequence_text
+        steps = [DiagnosticStep(i, name, 'SS', '22 F1 90') for i, name in enumerate(names, 1)]
+        return parse_sequence_text(export_sequence_text(steps))
+
+    def names(self, panel):
+        return [s.sequence_name for s in panel.fn_current_sequence().steps]
+
+    def test_append_goes_below_the_cursor_row_by_default(self):
+        panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
+        for index, name in enumerate(('a', 'b', 'c')):
+            panel.table.item(index, panel.COL_SEQUENCE_NAME).setText(name)
+        ids = tuple(panel.step_ids)
+        panel.set_step_result(ids[2], '62 F1 90', 'Passed')
+        panel.table.selectRow(1)
+        panel.apply_import(self.imported('x', 'y'), 'below')
+        self.assertEqual(self.names(panel), ['a', 'b', 'x', 'y', 'c'])
+        self.assertEqual([s.step for s in panel.fn_current_sequence().steps], [1, 2, 3, 4, 5])
+        self.assertEqual((panel.step_ids[0], panel.step_ids[1], panel.step_ids[4]), (ids[0], ids[1], ids[2]))
+        self.assertIn(ids[2], panel._runtime)  # Existing rows keep their results...
+        self.assertEqual(set(panel.checked_step_ids()), set(panel.step_ids))  # ...and new rows are ticked.
+        self.assertEqual(panel._selected_rows(), [2, 3])  # The imported rows are highlighted.
+        self.assertTrue(panel.fn_is_dirty())
+
+    def test_append_above_inserts_before_the_cursor_row(self):
+        panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
+        for index, name in enumerate(('a', 'b', 'c')):
+            panel.table.item(index, panel.COL_SEQUENCE_NAME).setText(name)
+        panel.table.selectRow(1)
+        panel.apply_import(self.imported('x', 'y'), 'above')
+        self.assertEqual(self.names(panel), ['a', 'x', 'y', 'b', 'c'])
+
+    def test_append_without_a_cursor_row_goes_to_the_end_or_the_start(self):
+        for mode, expected in (('below', ['a', 'b', 'x']), ('above', ['x', 'a', 'b']), ('append', ['a', 'b', 'x'])):
+            panel = self.cursor_panel(['BCM', 'BMS'])
+            panel.table.item(0, panel.COL_SEQUENCE_NAME).setText('a')
+            panel.table.item(1, panel.COL_SEQUENCE_NAME).setText('b')
+            panel.table.clearSelection()
+            panel.table.setCurrentCell(-1, -1)
+            panel.apply_import(self.imported('x'), mode)
+            self.assertEqual(self.names(panel), expected, mode)
+
+    def test_replace_still_replaces_everything(self):
+        panel = self.cursor_panel(['BCM', 'BMS'])
+        panel.apply_import(self.imported('only'), 'replace')
+        self.assertEqual(self.names(panel), ['only'])
+        with self.assertRaises(ValueError):
+            panel.apply_import(self.imported('x'), 'sideways')
+
+    def test_the_apps_own_export_can_be_pasted_back_even_with_blank_names(self):
+        from core.sequence_exchange import parse_sequence_text
+        panel = self.cursor_panel(['BCM', 'BMS', 'SS'])  # Every sequence name is blank.
+        panel.table.selectRow(0)
+        panel.apply_import(parse_sequence_text(panel.exchange_text()), 'below')
+        self.assertEqual([s.ecu for s in panel.fn_current_sequence().steps], ['BCM', 'BCM', 'BMS', 'SS', 'BMS', 'SS'])
+
+    def test_import_dialog_has_no_preview_and_apply_reads_the_text_directly(self):
+        from PySide6.QtWidgets import QDialog
+        from gui.dialogs.sequence_exchange_dialog import SequenceExchangeDialog
+        from core.sequence_exchange import export_sequence_text
+        dialog = SequenceExchangeDialog(ecu_names={'BCM'})
+        self.addCleanup(dialog.deleteLater)
+        self.assertFalse(hasattr(dialog, 'btn_preview') or hasattr(dialog, 'preview'))
+        items = [dialog.mode_combo.itemText(i) for i in range(dialog.mode_combo.count())]
+        self.assertEqual(items, ['Append below cursor', 'Append above cursor', 'Replace'])
+        self.assertEqual(dialog.mode_combo.currentIndex(), 0)
+        self.assertFalse(dialog.btn_apply.isEnabled())  # Nothing pasted yet.
+        dialog.editor.setPlainText(export_sequence_text([DiagnosticStep(1, '', 'BCM', '22 F1 90', None, 1)])
+                                   + 'garbage')  # Blank name, odd trailing row: still importable.
+        self.assertTrue(dialog.btn_apply.isEnabled())
+        for index, mode in enumerate(('below', 'above', 'replace')):
+            dialog.mode_combo.setCurrentIndex(index)
+            dialog.btn_apply.click()  # One click parses and accepts.
+            self.assertEqual((dialog.mode, dialog.result()), (mode, QDialog.Accepted))
+            self.assertEqual(len(dialog.parsed.steps), 2)
+        dialog.editor.setPlainText('   \n')
+        self.assertFalse(dialog.btn_apply.isEnabled())
+
+    def test_import_dialog_stays_open_and_explains_unreadable_text(self):
+        from PySide6.QtWidgets import QDialog
+        from gui.dialogs.sequence_exchange_dialog import SequenceExchangeDialog
+        dialog = SequenceExchangeDialog(ecu_names=None)
+        self.addCleanup(dialog.deleteLater)
+        dialog.editor.setPlainText('1\t"unterminated\tBCM\n')
+        self.assertTrue(dialog.btn_apply.isEnabled())
+        dialog.btn_apply.click()
+        self.assertIsNone(dialog.parsed)
+        self.assertNotEqual(dialog.result(), QDialog.Accepted)
+        self.assertIn('Row 1', dialog.status.text())
+        dialog.editor.setPlainText('1\tname\tBCM\t22 F1 90\n')  # Typing again clears the old message.
+        self.assertEqual(dialog.status.text(), '')
+
     # --- Loop / Delay are a remembered preference, not sequence data ----------
     def test_settings_strip_values_never_touch_the_sequence_and_are_announced(self):
         panel = self.cursor_panel(['BCM', 'BMS'])

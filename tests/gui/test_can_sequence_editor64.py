@@ -114,12 +114,11 @@ class SequenceEditor64Tests(unittest.TestCase):
         step=DiagnosticStep(1,'unsaved','EPS','10 01',comment='quoted\tcomment\nnext')
         text=export_sequence_text([step],['Passed'])
         dialog=SequenceExchangeDialog(ecu_names={'BCM','EPS'});self.addCleanup(dialog.deleteLater)
-        dialog.editor.setPlainText(text);dialog._preview()
-        self.assertFalse(dialog.btn_apply.isEnabled());dialog.mode_combo.setCurrentIndex(1)
-        self.assertTrue(dialog.btn_apply.isEnabled())
+        dialog.editor.setPlainText(text)
+        self.assertTrue(dialog.btn_apply.isEnabled())  # Append below the cursor is the default mode; no preview step.
         before=self.panel.fn_current_sequence()
-        dialog.editor.setPlainText(text+'invalid\trow');dialog._preview()
-        self.assertFalse(dialog.btn_apply.isEnabled());self.assertEqual(self.panel.fn_current_sequence(),before)
+        dialog.editor.setPlainText(text+'"unterminated\tquote');dialog.btn_apply.click()  # Unreadable input is refused.
+        self.assertIsNone(dialog.parsed);self.assertEqual(self.panel.fn_current_sequence(),before)
         imported=parse_sequence_text(text,ecu_names={'BCM','EPS'});self.panel.apply_import(imported,'append')
         self.assertEqual(self.panel.step_ids[0],key);self.assertEqual(self.panel._runtime[key][1],'Passed')
         self.assertNotIn(self.panel.step_ids[1],self.panel._runtime)
