@@ -8,7 +8,7 @@ from core.diagnostic_request import SECURITY_SEED_REQUESTS
 
 from html import escape
 
-from PySide6.QtCore import Qt, QSignalBlocker, Signal
+from PySide6.QtCore import QItemSelectionModel, Qt, QSignalBlocker, Signal
 
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QKeySequence, QShortcut
 
@@ -585,6 +585,23 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         self.execution_settings.setLayout(self.execution_layout)
 
         self.execution_settings.hide()
+
+        # ECU written into the selected rows by Import; listed from the selected Vehicle.
+        self.lbl_import_ecu = PrimaryLabel("ECU")
+
+        self.cmb_import_ecu = PrimaryComboBox(minimum_height=36)
+
+        self.cmb_import_ecu.setMinimumWidth(160)
+
+        import_index = self.execution_layout.indexOf(self.btn_import_delay)
+
+        self.execution_layout.insertSpacing(import_index, 12)
+
+        self.execution_layout.insertWidget(import_index + 1, self.lbl_import_ecu)
+
+        self.execution_layout.insertWidget(import_index + 2, self.cmb_import_ecu)
+
+        self._refresh_import_ecu_combo()
 
         self.title = PrimaryLabel("Select a sequence")
 
@@ -1595,7 +1612,90 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
                      if not self._resolved_ecu(step.ecu))
 
+    def _refresh_import_ecu_combo(self):
+
+        combo = self.cmb_import_ecu
+
+        previous = combo.currentData()
+
+        with QSignalBlocker(combo):
+
+            combo.clear()
+
+            if self._current_vehicle is None:
+
+                # Nothing to list without a Vehicle: say so instead of showing an empty list.
+
+                combo.addItem("Select Vehicle first", None)
+
+                combo.setEnabled(False)
+
+            else:
+
+                combo.addItem("Keep current", None)
+
+                for ecu in self._available_ecus:
+
+                    if self._resolved_ecu(ecu.name):
+
+                        combo.addItem(ecu.name, ecu.name)
+
+                combo.setCurrentIndex(max(combo.findData(previous), 0) if previous else 0)
+
+                combo.setEnabled(True)
+
+        fn_apply_scrollbar_style(combo.view())
+
+    def fn_import_execution_values_to_rows(self):
+
+        """Write Loop, Delay and (when chosen) ECU into the selected rows only."""
+
+        if self._test_case is None or not self._test_case.steps:
+
+            return
+
+        rows = self._selected_rows()
+
+        if not rows:
+
+            self.show_notice("Select the rows to import into first.")
+
+            return
+
+        changes = {"delay_ms": self.spn_command_delay.value(), "repeat": self.spn_loop.value()}
+
+        ecu = self.cmb_import_ecu.currentData()
+
+        if ecu:
+
+            changes["ecu"] = ecu
+
+        steps = list(self._test_case.steps)
+
+        for row in rows:
+
+            steps[row] = replace(steps[row], **changes)
+
+        self._replace_steps(steps)
+
+        self._reload_steps_into_table()
+
+        # selectRow() would keep only the last row: re-select every imported row.
+
+        selection = self.table.selectionModel()
+
+        for row in rows:
+
+            selection.select(
+                self.table.model().index(row, self.COL_STEP),
+                QItemSelectionModel.Select | QItemSelectionModel.Rows,
+            )
+
+        self._mark_dirty()
+
     def _refresh_ecu_combos(self):
+
+        self._refresh_import_ecu_combo()
 
         super()._refresh_ecu_combos()
 
@@ -1947,6 +2047,12 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         with QSignalBlocker(self.table):
             super().fn_refresh_theme()
+
+            self.lbl_import_ecu.fn_refresh_theme()
+
+            self.cmb_import_ecu.fn_refresh_theme()
+
+            fn_apply_scrollbar_style(self.cmb_import_ecu.view())
 
             colors = ThemeManager.fn_colors()
 

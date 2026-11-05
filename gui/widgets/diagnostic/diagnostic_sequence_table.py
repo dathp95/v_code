@@ -24,7 +24,7 @@ from gui.widgets.controls.secondary_button import SecondaryButton
 
 from gui.widgets.controls.primary_combobox import PrimaryComboBox
 from gui.widgets.controls.primary_label import PrimaryLabel
-from gui.widgets.controls.primary_number_input import PrimaryNumberInput
+from gui.widgets.controls.primary_integer_spinbox import PrimaryIntegerSpinBox
 from gui.widgets.controls.primary_table import PrimaryTable
 from gui.widgets.vehicle_manager.vehicle_selector import VehicleSelectorWidget
 from services.vehicle_service import VehicleService
@@ -93,13 +93,13 @@ class DiagnosticSequenceTable(QWidget):
         )
 
         self.lbl_loop = PrimaryLabel("Loop")
-        self.spn_loop = PrimaryNumberInput(value_width=62)
+        self.spn_loop = PrimaryIntegerSpinBox()
         self.spn_loop.setRange(1, 9999)
         self.spn_loop.setSingleStep(1)
         self.spn_loop.setValue(1)
 
         self.lbl_command_delay = PrimaryLabel("DELAY")
-        self.spn_command_delay = PrimaryNumberInput(value_width=86)
+        self.spn_command_delay = PrimaryIntegerSpinBox()
         self.spn_command_delay.setRange(0, 60000)
         self.spn_command_delay.setSingleStep(100)
         self.spn_command_delay.setValue(100)
@@ -416,6 +416,7 @@ class DiagnosticSequenceTable(QWidget):
         self._is_populating = was_populating
 
     def _on_loop_changed(self, value):
+        value = int(value)
         if self._is_populating:
             return
         if self._test_case is None or self._test_case.execution.loop == value:
@@ -426,6 +427,7 @@ class DiagnosticSequenceTable(QWidget):
         self._mark_dirty()
 
     def _on_command_delay_changed(self, value):
+        value = int(value)
         if self._is_populating:
             return
         if (
