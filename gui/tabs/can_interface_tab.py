@@ -104,6 +104,7 @@ class CANInterfaceTab(QWidget):
         if manager is not None and manager is not getattr(self, "_vehicle_event_source", None):
             manager.vehicle_data_changed.connect(self.fn_refresh_vehicles)
             self._vehicle_event_source = manager
+        self.connection_controller.discover_on_first_show()
         super().showEvent(event)
 
     def closeEvent(self, event):

@@ -133,7 +133,7 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\test 2.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\test 3.json"
     ],
-    "selected_id": "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\203.BCM&BasicDID.json",
+    "selected_id": "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9306.MHU&IO.json",
     "vehicles": {
         "C:\\REDO\\CODINGTOOL\\config\\diagnostic_sequences\\0002_READ_VIN copy.json": "LIMO",
         "C:\\VF5NP\\SW\\Version 3.2 CBT\\Version 3.2 CBT\\SeqList\\0001.READ&CDS.diag": "VF5NP",
@@ -172,7 +172,9 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\200.BCM&S.json": "VF5NP",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\300.BMS&S.json": "VF5NP",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0002.READ VIN.json": "VF5NP",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\203.BCM&BasicDID.json": "VF5NP"
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\203.BCM&BasicDID.json": "VF5NP",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9325.MHU&SVM360.json": "VF5NP",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9306.MHU&IO.json": "VF5NP"
     },
     "sources": [
         "C:\\REDO\\CODINGTOOL\\config\\diagnostic_sequences\\0002_READ_VIN.json",
@@ -289,6 +291,14 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0004. RESET ALL.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\203.BCM&BasicDID.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\204.BCM&CDS&1.json",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\10.Extend_Session.json"
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\10.Extend_Session.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\303.BMS&BasicDID.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\403.3IN1&BasicDID.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\503.ACM&BasicDID.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9325.MHU&SVM360.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9327.MHU&ClearProvovision.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9328.MHU&F115&0.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9307.MHU&StoreAndroid.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9306.MHU&IO.json"
     ]
 }

@@ -21,6 +21,10 @@ from services.can.can_device import (
 
 LOG = logging.getLogger(__name__)
 
+# XL_HardwareType.XL_HWTYPE_VIRTUAL: the "Virtual Channel" device the Vector driver always reports,
+# even with no adapter attached. It is not a USB-CAN interface, so it is never offered for connection.
+XL_HWTYPE_VIRTUAL = 1
+
 
 class VectorBackend:
 
@@ -299,6 +303,7 @@ class VectorBackend:
     def _normalize_devices(records, can_mask):
         groups = {}
         global_indices = set()
+        skipped_virtual = False
         for ordinal, record in enumerate(records):
             if not isinstance(record, Mapping):
                 raise CANDiscoveryError("Invalid Vector discovery metadata.")
@@ -321,6 +326,9 @@ class VectorBackend:
 
             serial = number("serial", "serial_number")
             hw_type, hw_index = number("hw_type"), number("hw_index")
+            if hw_type == XL_HWTYPE_VIRTUAL:
+                skipped_virtual = True
+                continue
             hw_channel, channel_index = number("hw_channel"), number("channel_index")
             channel = number("channel")
             if channel is None:
@@ -346,6 +354,8 @@ class VectorBackend:
                 groups[key] = (name, serial, hw_type, hw_index, [])
             groups[key][4].append(info)
         if not groups:
+            if skipped_virtual:
+                return ()  # Only the driver's virtual device exists: same as no adapter attached.
             raise CANNoChannelsError("The detected Vector device has no available CAN channel.")
         return tuple(CANDeviceInfo(name, serial, hw_type, hw_index, tuple(channels), repr(key))
                      for key, (name, serial, hw_type, hw_index, channels) in groups.items())

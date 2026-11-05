@@ -40,6 +40,8 @@ class CanConnectionController(QObject):
 
         self._previous_channel = None
 
+        self._auto_discovered = False
+
         app = QApplication.instance()
 
         self._discovery_task = CANDiscoveryTask(self._service, app)
@@ -70,8 +72,6 @@ class CanConnectionController(QObject):
 
     def _connect_signals(self):
 
-        self.btn_refresh.clicked.connect(self.refresh_can_setup)
-
         self.btn_connect.clicked.connect(self.connect_can)
 
         self.btn_disconnect.clicked.connect(self.disconnect_can)
@@ -79,6 +79,17 @@ class CanConnectionController(QObject):
         self.cmb_device.currentIndexChanged.connect(self._populate_device_channels)
 
         self.cmb_channel.currentIndexChanged.connect(self._update_button_states)
+
+    def discover_on_first_show(self):
+
+        # There is no Refresh button: adapters are looked up once when the tab first appears,
+        # and again whenever Connect is pressed without a usable channel.
+
+        if not self._auto_discovered:
+
+            self._auto_discovered = True
+
+            self.refresh_can_setup()
 
     def refresh_can_setup(self):
 
@@ -222,11 +233,17 @@ class CanConnectionController(QObject):
 
     def connect_can(self):
 
-        if (self._closing or self._refreshing or self._connection_task.running or not self._has_selection()
+        if (self._closing or self._refreshing or self._connection_task.running
 
-                or self._service.snapshot.state not in (State.DISCONNECTED, State.ERROR)
+                or self._service.snapshot.state not in (State.DISCONNECTED, State.ERROR)):
 
-                or self._service.snapshot.rediscovery_required):
+            return
+
+        if self._service.snapshot.rediscovery_required or not self._has_selection():
+
+            # Nothing valid to connect to yet: look for adapters, then let the user pick a channel.
+
+            self.refresh_can_setup()
 
             return
 
@@ -378,9 +395,7 @@ class CanConnectionController(QObject):
 
         busy = self._connection_task.running or self._refreshing or self._closing
 
-        self.btn_refresh.setEnabled(idle and not busy)
-
-        self.btn_connect.setEnabled(idle and not busy and self._has_selection() and not snapshot.rediscovery_required)
+        self.btn_connect.setEnabled(idle and not busy)
 
         self.btn_disconnect.setEnabled(snapshot.state == State.CONNECTED and not busy)
 
@@ -389,6 +404,12 @@ class CanConnectionController(QObject):
             if hasattr(combo, 'setEnabled'):
 
                 combo.setEnabled(idle and not busy)
+
+        has_channels = self.cmb_channel.count() > 0
+
+        self.lbl_channel.setVisible(has_channels)
+
+        self.cmb_channel.setVisible(has_channels)
 
         if snapshot.state == State.CONNECTED:
 

@@ -114,17 +114,17 @@ class CANInterfaceTabTests(unittest.TestCase):
         self.assertEqual(tab.cmb_channel.count(), 0)
         self.assertEqual(tab.cmb_baudrate.currentData(), 500000)
         self.assertEqual(tab.lbl_status.text(), "Disconnected")
-        self.assertFalse(tab.btn_connect.isEnabled())
+        self.assertTrue(tab.btn_connect.isEnabled())  # Connect looks for adapters when none is listed.
         self.assertFalse(tab.btn_disconnect.isEnabled())
+        self.assertTrue(tab.cmb_channel.isHidden() and tab.lbl_channel.isHidden())
 
     def test_action_buttons_and_status_are_in_the_same_row(self):
         tab = CANInterfaceTab(service=FakeCANService())
         self.addCleanup(tab.deleteLater)
 
-        self.assertIs(tab.action_layout.itemAt(0).widget(), tab.btn_refresh)
-        self.assertIs(tab.action_layout.itemAt(1).widget(), tab.btn_connect)
-        self.assertIs(tab.action_layout.itemAt(2).widget(), tab.btn_disconnect)
-        self.assertIs(tab.action_layout.itemAt(3).widget(), tab.lbl_status)
+        self.assertIs(tab.action_layout.itemAt(0).widget(), tab.btn_connect)
+        self.assertIs(tab.action_layout.itemAt(1).widget(), tab.btn_disconnect)
+        self.assertIs(tab.action_layout.itemAt(2).widget(), tab.lbl_status)
         self.assertGreaterEqual(
             tab.lbl_status.minimumHeight(),
             tab.btn_connect.minimumHeight(),
@@ -137,7 +137,6 @@ class CANInterfaceTabTests(unittest.TestCase):
             tab = CANInterfaceTab()
             self.addCleanup(tab.deleteLater)
             load.assert_not_called()
-            self.assertFalse(tab.btn_connect.isEnabled())
             self.refresh(tab)
         warning.assert_called_once()
         self.assertEqual(tab.lbl_status.toolTip(), "python-can is not installed.")
@@ -197,7 +196,6 @@ class CANInterfaceTabTests(unittest.TestCase):
         self.assertEqual(tab.lbl_status.text(), "Connected")
         self.assertFalse(tab.btn_connect.isEnabled())
         self.assertTrue(tab.btn_disconnect.isEnabled())
-        self.assertFalse(tab.btn_refresh.isEnabled())
 
     def test_connect_error_updates_status_without_crash(self):
         service = FakeCANService()
@@ -249,8 +247,8 @@ class CANInterfaceTabTests(unittest.TestCase):
         self.refresh(tab)
         self.assertEqual(tab.cmb_device.count(), 0)
         self.assertEqual(tab.cmb_channel.count(), 0)
-        self.assertFalse(tab.btn_connect.isEnabled())
-        self.assertTrue(tab.btn_refresh.isEnabled())
+        self.assertTrue(tab.cmb_channel.isHidden() and tab.lbl_channel.isHidden())
+        self.assertTrue(tab.btn_connect.isEnabled())
         self.assertIn("No Vector CAN device detected", tab.lbl_status.toolTip())
 
     def test_device_selection_and_refresh_preserve_correct_channel_identity(self):
@@ -279,8 +277,8 @@ class CANInterfaceTabTests(unittest.TestCase):
         for channels in ((), (CANChannelInfo(0, None, "CAN 1", False),)):
             service.devices = (CANDeviceInfo("Vector Device", None, None, None, channels),)
             self.refresh(tab)
-            self.assertFalse(tab.btn_connect.isEnabled())
-            tab.connect_can()
+            tab.connect_can()  # Without a connectable channel Connect only runs discovery again.
+            self.wait_for_refresh(tab)
             self.assertIsNone(service.config)
 
     def test_refresh_preserves_local_channel_and_uses_updated_global_index(self):
@@ -324,7 +322,7 @@ class CANInterfaceTabTests(unittest.TestCase):
         warning.assert_called_once()
         self.assertEqual(tab.cmb_device.count(), 0)
         self.assertIn("Vector XL Driver", tab.lbl_status.toolTip())
-        self.assertFalse(tab.btn_connect.isEnabled())
+        self.assertTrue(tab.cmb_channel.isHidden())
 
     def test_refresh_is_async_duplicate_guard_and_never_disconnects(self):
         service = FakeCANService()
@@ -333,7 +331,6 @@ class CANInterfaceTabTests(unittest.TestCase):
         self.addCleanup(tab.deleteLater)
         tab.refresh_can_setup()
         try:
-            self.assertFalse(tab.btn_refresh.isEnabled())
             self.assertFalse(tab.btn_connect.isEnabled())
             tab.refresh_can_setup()
             alive = []
@@ -365,7 +362,7 @@ class CANInterfaceTabTests(unittest.TestCase):
             ThemeManager.fn_set_theme(theme)
             tab.fn_refresh_theme()
             self.assertEqual(tab.cmb_channel.currentData(), selection)
-            self.assertIs(tab.action_layout.itemAt(0).widget(), tab.btn_refresh)
+            self.assertIs(tab.action_layout.itemAt(0).widget(), tab.btn_connect)
 
     def test_closing_tab_ignores_late_results_without_destroying_active_thread(self):
         service = FakeCANService()

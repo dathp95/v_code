@@ -39,6 +39,21 @@ class VectorDiscoveryTests(unittest.TestCase):
         vector.xldriver.xlActivateChannel.assert_not_called()
         vector.xldriver.xlCanTransmit.assert_not_called()
 
+    def test_vector_virtual_channels_alone_mean_no_hardware(self):
+        # Vector driver always reports "Virtual Channel" (XL_HWTYPE_VIRTUAL = 1) even with no adapter plugged in.
+        virtual = [record(serial=0, hw_type=1, name="Virtual Channel", global_index=i, hw_channel=i) for i in (0, 1)]
+        backend, can, _ = self.backend(virtual, total=2, can_count=2)
+        self.assertEqual(backend.fn_refresh(), ())
+        can.Bus.assert_not_called()
+
+    def test_vector_virtual_channels_are_dropped_next_to_real_hardware(self):
+        records = [record(serial=0, hw_type=1, name="Virtual Channel", global_index=0, hw_channel=0),
+                   record(global_index=5), record(global_index=8, hw_channel=1)]
+        backend, _, _ = self.backend(records, total=3, can_count=3)
+        devices = backend.fn_refresh()
+        self.assertEqual([device.name for device in devices], ["VN1630A"])
+        self.assertEqual([c.channel_index for c in devices[0].channels], [5, 8])
+
     def test_channels_preserve_native_global_serial_and_driver_name(self):
         backend, can, _ = self.backend([record(), record(global_index=8, hw_channel=1)], total=2, can_count=2)
         devices = backend.fn_refresh()
