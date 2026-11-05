@@ -219,7 +219,24 @@ class CanDiagnosticTableUiTests(unittest.TestCase):
         panel.table.cellWidget(0, panel.COL_ECU).setCurrentIndex(panel.table.cellWidget(0, panel.COL_ECU).findText('SS'))
         self.assertEqual(combo.currentText(), 'SS')  # Follows an ECU edit of that same row.
 
-    def test_import_keeps_every_ecu_when_the_ecu_box_is_left_on_the_cursor_rows_ecu(self):
+    def test_import_writes_loop_delay_and_the_cursor_rows_ecu_into_every_checked_row(self):
+        panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
+        ids = tuple(panel.step_ids)
+        panel.spn_loop.setValue(5)
+        panel.spn_command_delay.setValue(1500)
+        panel.table.selectRow(0)
+        self.assertEqual(panel.cmb_import_ecu.currentText(), 'BCM')  # The cursor row's ECU is the default.
+        panel._is_dirty = False
+        panel.btn_import_delay.click()
+        # Rows 1, 2 and 3 are all checked: they all end up with the same ECU, Loop and Delay.
+        self.assertEqual(self.rows(panel), [('BCM', 5, 1500)] * 3)
+        self.assertEqual(tuple(panel.step_ids), ids)
+        self.assertEqual(panel.checked_step_ids(), ids)  # Ticks survive the import.
+        self.assertEqual(panel.table.currentRow(), 0)
+        self.assertEqual(panel.cmb_import_ecu.currentText(), 'BCM')
+        self.assertTrue(panel.fn_is_dirty())
+
+    def test_import_leaves_unchecked_rows_and_their_results_alone(self):
         panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
         ids = tuple(panel.step_ids)
         panel.set_step_result(ids[1], '62 F1 90', 'Passed')
@@ -227,35 +244,30 @@ class CanDiagnosticTableUiTests(unittest.TestCase):
         panel.spn_command_delay.setValue(500)
         panel.table.item(1, panel.COL_CHECK).setCheckState(Qt.Unchecked)
         panel.table.selectRow(2)
-        self.assertEqual(panel.cmb_import_ecu.currentText(), 'SS')  # Not BCM: it is the cursor row's ECU.
-        panel._is_dirty = False
-        panel.btn_import_delay.click()
-        self.assertEqual(self.rows(panel), [('BCM', 4, 500), ('BMS', 1, 100), ('SS', 4, 500)])
-        self.assertEqual(tuple(panel.step_ids), ids)
-        self.assertEqual(panel.checked_step_ids(), (ids[0], ids[2]))  # Ticks survive the import.
-        self.assertIn(ids[1], panel._runtime)  # The unchecked row keeps its result.
-        self.assertEqual(panel.table.currentRow(), 2)
         self.assertEqual(panel.cmb_import_ecu.currentText(), 'SS')
-        self.assertTrue(panel.fn_is_dirty())
+        panel.btn_import_delay.click()
+        self.assertEqual(self.rows(panel), [('SS', 4, 500), ('BMS', 1, 100), ('SS', 4, 500)])
+        self.assertEqual(panel.checked_step_ids(), (ids[0], ids[2]))
+        self.assertIn(ids[1], panel._runtime)
 
-    def test_import_writes_a_deliberately_chosen_ecu_to_the_cursor_row_only(self):
+    def test_import_writes_a_deliberately_chosen_ecu_into_every_checked_row(self):
         panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
         panel.spn_loop.setValue(2)
         panel.table.selectRow(1)
         panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('SS'))
         panel.btn_import_delay.click()
-        self.assertEqual(self.rows(panel), [('BCM', 2, 100), ('SS', 2, 100), ('SS', 2, 100)])
-        panel.table.selectRow(0)
-        self.assertEqual(panel.cmb_import_ecu.currentText(), 'BCM')
+        self.assertEqual(self.rows(panel), [('SS', 2, 100)] * 3)
 
-    def test_import_with_only_a_cursor_row_changes_just_its_ecu(self):
+    def test_import_into_nothing_checked_changes_nothing_even_with_a_cursor_row(self):
         panel = self.cursor_panel(['BCM', 'BMS', 'SS'])
         panel.spn_loop.setValue(5)
         panel.set_all_checked(False)
         panel.table.selectRow(1)
-        panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('SS'))
+        panel._is_dirty = False
         panel.btn_import_delay.click()
-        self.assertEqual(self.rows(panel), [('BCM', 1, 100), ('SS', 1, 100), ('SS', 1, 100)])
+        self.assertEqual(self.rows(panel), [('BCM', 1, 100), ('BMS', 1, 100), ('SS', 1, 100)])
+        self.assertFalse(panel.fn_is_dirty())
+        self.assertIn('Check', panel.notice.text())
 
     def test_import_never_writes_an_ecu_when_the_cursor_row_has_none_selected_in_the_box(self):
         panel = self.cursor_panel(['BCM', 'GHOST'])

@@ -174,13 +174,12 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0002.READ VIN.json": "VF5NP",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\203.BCM&BasicDID.json": "VF5NP",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9325.MHU&SVM360.json": "VF5NP",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9306.MHU&IO.json": "VF3 FL",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9306.MHU&IO.json": "VF5NP",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\10.Extend_Session.json": "VF5NP",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\706.BPM&IO&R.json": "VF5NP",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9728.VDKCU&DKinfoUpProvisioning.json": "VF5NP",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0001.READ&CDS_copy.json": "VF5NP",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0001.READ&CDS.json": "VF5NP",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\TEST4.json": "VF5NP"
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0001.READ&CDS.json": "VF5NP"
     },
     "sources": [
         "C:\\REDO\\CODINGTOOL\\config\\diagnostic_sequences\\0002_READ_VIN.json",
@@ -325,14 +324,14 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\209.BCM&WriteTPMS.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9302.MHU&WriteVIN&1.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9304.MHU&CDS&1.json",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\TEST4.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9603.USSR&BasicDID.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\test 3.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\test 2.json",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9732.VDKCU&sofwarePUBLICKey.json"
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9732.VDKCU&sofwarePUBLICKey.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9304.MHU&CDS&ORVM.json"
     ],
     "import_settings": {
-        "loop": 5,
-        "delay_ms": 1500
+        "loop": 2,
+        "delay_ms": 2000
     }
 }

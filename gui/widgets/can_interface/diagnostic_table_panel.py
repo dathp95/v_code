@@ -1740,43 +1740,37 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
     def fn_import_execution_values_to_rows(self):
 
-        """Loop and Delay go to every checked row; the ECU goes only to the row(s) under the cursor."""
+        """Write Loop, Delay and the ECU shown in the box into every checked row.
+
+        The ECU box starts on the ECU of the row under the cursor, so rows ending up with the same
+        ECU is the normal result; a cursor row with no ECU leaves every ECU untouched.
+        """
 
         if self._test_case is None or not self._test_case.steps:
 
             return
 
-        checked_rows = {row for row, key in enumerate(self.step_ids) if key in self._checked}
+        rows = [row for row, key in enumerate(self.step_ids) if key in self._checked]
 
-        current = self.table.currentRow()
+        if not rows:
 
-        # The ECU box mirrors the cursor row, so importing it only ever touches that row.
-
-        cursor_rows = {current} if 0 <= current < len(self.step_ids) else set()
-
-        ecu = self.cmb_import_ecu.currentData() or ""
-
-        if not checked_rows and not (ecu and cursor_rows):
-
-            self.show_notice("Check the rows to import into first (the ECU goes to the selected row).")
+            self.show_notice("Check the rows to import into first.")
 
             return
+
+        changes = {"delay_ms": self.spn_command_delay.value(), "repeat": self.spn_loop.value()}
+
+        ecu = self.cmb_import_ecu.currentData()
+
+        if ecu:
+
+            changes["ecu"] = ecu
 
         steps = list(self._test_case.steps)
 
         undo = []
 
-        for row in sorted(checked_rows | (cursor_rows if ecu else set())):
-
-            changes = {}
-
-            if row in checked_rows:
-
-                changes.update(delay_ms=self.spn_command_delay.value(), repeat=self.spn_loop.value())
-
-            if ecu and row in cursor_rows:
-
-                changes["ecu"] = ecu
+        for row in rows:
 
             previous = {name: getattr(steps[row], name) for name in changes}
 
@@ -1790,7 +1784,7 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         if not undo:
 
-            self.show_notice("Nothing to change: the selected rows already have these values.")
+            self.show_notice("Nothing to change: the checked rows already have these values.")
 
             return
 
