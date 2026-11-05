@@ -100,7 +100,7 @@ class CanDiagnosticExecutionTests(unittest.TestCase):
         panel=self.tab.sequence_table
         self.assertEqual(panel.table.item(0,panel.COL_RECEIVE).text(),VIN.hex(' ').upper())
         self.assertEqual([bytes(msg.data) for msg in self.bus.sent],[bytes.fromhex('03 22 F1 90 00 00 00 00'),bytes.fromhex('30 00 00 00 00 00 00 00')])
-        self.assertEqual(panel.checked_step_ids(),())
+        self.assertEqual(panel.checked_step_ids(),tuple(panel.step_ids))
         self.wait(lambda:self.tab.monitor_panel.frames>=6)
         self.assertTrue(any(frame.can_id==0x123 for frame in self.tab.monitor_panel._buffer))
         tx=[frame for frame in self.tab.monitor_panel._buffer if frame.direction=='TX']

@@ -10,7 +10,7 @@ from html import escape
 
 from PySide6.QtCore import Qt, QSignalBlocker, Signal
 
-from PySide6.QtGui import QColor, QFontDatabase, QKeySequence, QShortcut
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QKeySequence, QShortcut
 
 from PySide6.QtWidgets import (
 
@@ -31,6 +31,7 @@ from gui.widgets.controls.primary_label import PrimaryLabel
 
 from gui.widgets.diagnostic.diagnostic_sequence_table import DiagnosticSequenceTable
 
+from gui.widgets.can_interface.check_all_header import CheckAllHeader
 from gui.widgets.can_interface.panel_theme import apply_panel_theme
 
 from services.can.diag_ecu_mapper import find_ecu_by_can_ids
@@ -38,20 +39,39 @@ from services.can.diag_ecu_mapper import find_ecu_by_can_ids
 from gui.themes.styles.controls.lineedit_style import fn_lineedit_style
 from gui.themes.styles.controls.table_style import fn_table_style
 
-HEX_FONT_SIZE = 11
+# Same face and size as the ECU column and the table text (see fn_table_style).
+HEX_FONT_SIZE = 10
 
-HEX_FONT_FAMILY = QFontDatabase.systemFont(
-    QFontDatabase.FixedFont
-).family()
+HEX_FONT_FAMILY = "Segoe UI"
 
 
 def fn_hex_font():
-    font = QFontDatabase.systemFont(
-        QFontDatabase.FixedFont
-    )
-    font.setPointSize(HEX_FONT_SIZE)
-    font.setBold(True)
-    return font
+    return QFont(HEX_FONT_FAMILY, HEX_FONT_SIZE)
+
+
+_HEX_DIGITS = frozenset("0123456789abcdefABCDEF")
+
+
+def format_hex_while_typing(text, cursor):
+    """Group typed HEX digits in pairs ('22f190' -> '22 F1 90').
+
+    Returns (text, cursor) or None when the text is not plain HEX (left untouched so the
+    existing invalid-HEX warning still shows).
+    """
+
+    if any(not (char in _HEX_DIGITS or char.isspace()) for char in text):
+        return None
+
+    digits_before = sum(char in _HEX_DIGITS for char in text[:cursor])
+
+    digits = "".join(char for char in text if char in _HEX_DIGITS).upper()
+
+    formatted = " ".join(digits[i:i + 2] for i in range(0, len(digits), 2))
+
+    position = 0 if digits_before == 0 else (digits_before - 1) + (digits_before - 1) // 2 + 1
+
+    return formatted, position
+
 
 def validate_and_format_hex(raw_text: str):
 
@@ -105,6 +125,20 @@ def validate_and_format_hex(raw_text: str):
 class HexItemDelegate(QStyledItemDelegate):
     """HEX editor for compact diagnostic table cells."""
 
+    LIVE_FORMAT = True
+
+    def _live_format(self, editor):
+        result = format_hex_while_typing(editor.text(), editor.cursorPosition())
+
+        if result is None or result[0] == editor.text():
+            return
+
+        text, position = result
+
+        editor.setText(text)
+
+        editor.setCursorPosition(position)
+
     def createEditor(self, parent, option, index):
         editor = QLineEdit(parent)
         editor.setObjectName("diagnosticHexEditor")
@@ -118,6 +152,9 @@ class HexItemDelegate(QStyledItemDelegate):
         editor.textChanged.connect(
             lambda text: self._on_text_changed(editor, text)
         )
+
+        if self.LIVE_FORMAT:
+            editor.textEdited.connect(lambda _text: self._live_format(editor))
 
         self._on_text_changed(editor, "")
         
@@ -192,7 +229,6 @@ class HexItemDelegate(QStyledItemDelegate):
 
                 font-family: "{HEX_FONT_FAMILY}";
                 font-size: {HEX_FONT_SIZE}pt;
-                font-weight: bold;
             }}
         """
 
@@ -215,8 +251,25 @@ class HexItemDelegate(QStyledItemDelegate):
 
 
 
+class TextItemDelegate(HexItemDelegate):
+    """Free-text editor with the same boxed look as the HEX editors."""
+
+    LIVE_FORMAT = False
+
+    def _on_text_changed(self, editor, text):
+        # Plain text is never an invalid HEX string.
+        super()._on_text_changed(editor, "")
+
+    def setModelData(self, editor, model, index):
+        QStyledItemDelegate.setModelData(self, editor, model, index)
+
+
 class ReadOnlyHexCell(QLineEdit):
-    """Read-only HEX cell using the existing V-CODE theme."""
+    """Read-only HEX cell using the existing V-CODE theme.
+
+    At rest it blends into the row; once clicked it takes the same boxed look as the
+    Expected Response editor, so the text can be selected and copied.
+    """
 
     def __init__(self, text="", parent=None):
         super().__init__(text, parent)
@@ -230,14 +283,35 @@ class ReadOnlyHexCell(QLineEdit):
             Qt.AlignLeft | Qt.AlignVCenter
         )
 
+        self.setCursorPosition(0)
+
         self._style_signature = None
+        self._selected = False
+        self._row = 0
+        self._focused = False
         self.fn_refresh_theme()
 
-    def fn_refresh_theme(self, selected=False, row=0):
+    def set_payload(self, text):
+        if text != self.text():
+            self.setText(text)
+
+        # Long data always shows its beginning, never its tail.
+        self.setCursorPosition(0)
+
+    def fn_refresh_theme(self, selected=None, row=None):
+        if selected is not None:
+            self._selected = bool(selected)
+
+        if row is not None:
+            self._row = row
+
+        selected, row = self._selected, self._row
+
         signature = (
             ThemeManager.fn_theme(),
-            bool(selected),
+            selected,
             row % 2,
+            self._focused,
         )
 
         if signature == self._style_signature:
@@ -252,52 +326,74 @@ class ReadOnlyHexCell(QLineEdit):
             else colors.TEXT_INVERT
         )
 
-        background = (
-            colors.PRIMARY
-            if selected
-            else (
-                colors.TABLE_ROW
-                if row % 2 == 0
-                else colors.TABLE_ROW_ALT
+        if self._focused:
+            # Same look as the HEX / name editors.
+            background = colors.WINDOW
+            foreground = colors.TEXT
+            border = f"1px solid {colors.PRIMARY}"
+            radius = "2px"
+            selection_bg = colors.PRIMARY
+            selection_fg = selected_text
+        else:
+            background = (
+                colors.PRIMARY
+                if selected
+                else (
+                    colors.TABLE_ROW
+                    if row % 2 == 0
+                    else colors.TABLE_ROW_ALT
+                )
             )
-        )
 
-        foreground = (
-            selected_text if selected else colors.TEXT
-        )
+            foreground = (
+                selected_text if selected else colors.TEXT
+            )
 
-        # Make text selection visible even when the row is selected.
-        selection_bg = (
-            colors.TABLE_HEADER if selected else colors.PRIMARY
-        )
+            border = "none"
+            radius = "0px"
 
-        selection_fg = (
-            colors.TEXT if selected else selected_text
-        )
+            # Make text selection visible even when the row is selected.
+            selection_bg = (
+                colors.TABLE_HEADER if selected else colors.PRIMARY
+            )
+
+            selection_fg = (
+                colors.TEXT if selected else selected_text
+            )
 
         self.setStyleSheet(
             fn_lineedit_style()
             + f"""
-            QLineEdit#receiveMessageCell {{
+            QLineEdit#receiveMessageCell,
+            QLineEdit#receiveMessageCell:focus {{
                 background-color: {background};
                 color: {foreground};
-                border: none;
-                border-radius: 0px;
+                border: {border};
+                border-radius: {radius};
                 padding: 0px 4px;
                 selection-background-color: {selection_bg};
                 selection-color: {selection_fg};
                 font-family: "{HEX_FONT_FAMILY}";
                 font-size: {HEX_FONT_SIZE}pt;
-                font-weight: bold;
-            }}
-
-            QLineEdit#receiveMessageCell:focus {{
-                border: none;
             }}
             """
         )
 
         self._style_signature = signature
+
+    def focusInEvent(self, event):
+        super().focusInEvent(event)
+
+        self._focused = True
+        self.fn_refresh_theme()
+
+    def focusOutEvent(self, event):
+        super().focusOutEvent(event)
+
+        self._focused = False
+        self.deselect()
+        self.setCursorPosition(0)
+        self.fn_refresh_theme()
 
     def mousePressEvent(self, event):
         super().mousePressEvent(event)
@@ -364,7 +460,7 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
     COL_CHECK, COL_STEP, COL_SEQUENCE_NAME, COL_ECU, COL_REQUEST, COL_SEND, COL_DELAY, COL_REPEAT, COL_EXPECTED, COL_RECEIVE, COL_RESULT, COL_COMMENT = range(12)
 
-    HEADERS = ("✓", "Step", "Test sequence name", "ECU", "Payload (HEX)", ">", "Delay (ms)", "Repeat",
+    HEADERS = ("", "Step", "Test sequence name", "ECU", "Payload (HEX)", ">", "Delay (ms)", "Repeat",
 
                "Expected Response (HEX)", "Receive Message (HEX)", "Results", "Comment")
 
@@ -447,21 +543,21 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         self.btn_add.setMaximumHeight(30)
 
         self.btn_run.setText("RUN")
-        self.btn_run.setMinimumSize(75, 30)
+        self.btn_run.setFixedSize(120, 30)
         self.btn_run.setMaximumHeight(30)
         self.btn_run.setEnabled(False)
-        self.btn_run.setToolTip("Run diagnostic sequence from top to bottom.")
+        self.btn_run.setToolTip("Run the checked steps from top to bottom.")
         self.btn_run.show()
 
         self.btn_export.setText("EXPORT")
-        self.btn_export.setMinimumSize(85, 30)
+        self.btn_export.setFixedSize(120, 30)
         self.btn_export.setMaximumHeight(30)
         self.btn_export.setEnabled(True)
         self.btn_export.setToolTip("Export diagnostic sequence to Excel report (.xlsx)")
         self.btn_export.show()
 
         self.btn_stop.setText("STOP")
-        self.btn_stop.setMinimumSize(75, 30)
+        self.btn_stop.setFixedSize(120, 30)
         self.btn_stop.setMaximumHeight(30)
         self.btn_stop.setEnabled(False)
         self.btn_stop.setToolTip("Stop sequence execution.")
@@ -477,19 +573,37 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         toolbar.setSpacing(6)
 
-        # Căn trái: Vehicle | Combobox (vehicle) | +Add Row | Delete | Setting
+        # Căn trái, cùng lề với bảng: RUN | EXPORT | STOP (120px) | Vehicle | +Add Row | Delete | Setting
+        toolbar.addWidget(self.btn_run)
+
+        toolbar.addWidget(self.btn_export)
+
+        toolbar.addWidget(self.btn_stop)
+
+        toolbar.addSpacing(12)
+
         toolbar.addWidget(self.vehicle_selector)
+
         toolbar.addWidget(self.btn_add)
+
         toolbar.addWidget(self.btn_delete)
+
         toolbar.addWidget(self.btn_settings)
 
-        # Căn dãn cách giữa
         toolbar.addStretch(1)
 
-        # Căn phải: RUN | EXPORT | STOP (kế thừa primary button)
-        toolbar.addWidget(self.btn_run)
-        toolbar.addWidget(self.btn_export)
-        toolbar.addWidget(self.btn_stop)
+        # The first header section is a working "select all" check box.
+        header = CheckAllHeader(Qt.Horizontal, self.table)
+
+        self.table.setHorizontalHeader(header)
+
+        header.setStretchLastSection(True)
+
+        header.toggle_requested.connect(self.set_all_checked)
+
+        self._configure_columns()
+
+        self.table.horizontalHeaderItem(self.COL_CHECK).setToolTip("Select / deselect all steps to run")
 
         layout.insertLayout(0, toolbar)
 
@@ -527,6 +641,10 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
             self.receive_delegate
         )
 
+        self.text_delegate = TextItemDelegate(self.table)
+
+        self.table.setItemDelegateForColumn(self.COL_SEQUENCE_NAME, self.text_delegate)
+
         self.table.setItemDelegateForColumn(self.COL_REQUEST, self.hex_delegate)
 
         self.table.setItemDelegateForColumn(self.COL_EXPECTED, self.hex_delegate)
@@ -547,13 +665,16 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         self.step_ids = [uuid4().hex for _ in test_case.steps] if test_case else []
 
-        self._checked.clear()
+        # Every row is selected to run by default.
+        self._checked = set(self.step_ids)
 
         self._runtime.clear()
 
         self.import_diagnostics = ()
 
         super().fn_load_sequence(test_case)
+
+        self._refresh_check_all()
 
         self._step_signatures = self._runtime_signatures()
 
@@ -583,9 +704,15 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         self._ensure_test_case()
 
-        self.step_ids.insert(self._selected_insert_index(), uuid4().hex)
+        new_id = uuid4().hex
+
+        self.step_ids.insert(self._selected_insert_index(), new_id)
+
+        self._checked.add(new_id)
 
         super().fn_add_step_after_selected()
+
+        self._refresh_check_all()
 
         self._update_run_button_state()
 
@@ -612,6 +739,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         super().fn_remove_selected_step()
 
         self.selected_rows_changed.emit(self.checked_step_ids())
+
+        self._refresh_check_all()
 
         self._selection_changed()
 
@@ -752,6 +881,7 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
             else:
                 self._checked.discard(key)
             self.selected_rows_changed.emit(self.checked_step_ids())
+            self._refresh_check_all()
             return
         super()._on_item_changed(item)
         if row < len(self.step_ids):
@@ -1014,6 +1144,42 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         self.notice.setVisible(bool(text))
 
+    def _refresh_check_all(self):
+
+        selected = sum(key in self._checked for key in self.step_ids)
+
+        self.table.horizontalHeader().set_check_state(
+            Qt.Unchecked if not selected
+            else Qt.Checked if selected == len(self.step_ids)
+            else Qt.PartiallyChecked
+        )
+
+    def set_all_checked(self, checked):
+
+        self._checked = set(self.step_ids) if checked else set()
+
+        state = Qt.Checked if checked else Qt.Unchecked
+
+        self._is_populating = True
+
+        try:
+
+            for row in range(self.table.rowCount()):
+
+                item = self.table.item(row, self.COL_CHECK)
+
+                if item is not None:
+
+                    item.setCheckState(state)
+
+        finally:
+
+            self._is_populating = False
+
+        self._refresh_check_all()
+
+        self.selected_rows_changed.emit(self.checked_step_ids())
+
     def checked_step_ids(self):
 
         return tuple(key for key in self.step_ids if key in self._checked)
@@ -1089,8 +1255,7 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
             self.table.setCellWidget(row, self.COL_RECEIVE, cell)
 
         else:
-            if cell.text() != payload:
-                cell.setText(payload)
+            cell.set_payload(payload)
 
         # Task 5: Comment is 100% user-managed: never overwrite with auto_comments
 

@@ -40,6 +40,7 @@ class CanDiagnosticController(QObject):
         self._sequence_running = False
         self._sequence_index = 0
         self._sequence_repeat_count = 0
+        self._sequence_keys = set()
         self._sequence_timer = QTimer(self)
         self._sequence_timer.setSingleShot(True)
         self._sequence_timer.timeout.connect(self._execute_sequence_step)
@@ -384,14 +385,24 @@ class CanDiagnosticController(QObject):
         if self._active is not None or self.task.diagnostic_busy or self.auto_security.busy:
             self.panel.show_notice("Another diagnostic operation is currently busy.")
             return
+        self._sequence_keys = set(self.panel.checked_step_ids())
+        if not self._sequence_keys:
+            self.panel.show_notice("Select at least one step to run.")
+            return
 
         self._sequence_running = True
         self._sequence_index = 0
+        self._skip_unchecked_steps()
         self._sequence_repeat_count = 0
         self.panel.set_sequence_running(True)
         self.panel.reset_runtime_results()
-        self.panel.show_notice(f"Running sequence ({len(self.panel.step_ids)} steps)...")
+        self.panel.show_notice(f"Running sequence ({len(self._sequence_keys)} of {len(self.panel.step_ids)} steps)...")
         self._execute_sequence_step()
+
+    def _skip_unchecked_steps(self):
+        ids = self.panel.step_ids
+        while self._sequence_index < len(ids) and ids[self._sequence_index] not in self._sequence_keys:
+            self._sequence_index += 1
 
     def _execute_sequence_step(self):
         if not self._sequence_running or self._closed:
@@ -404,6 +415,7 @@ class CanDiagnosticController(QObject):
         step = self.panel.step_for_id(key)
         if step is None:
             self._sequence_index += 1
+            self._skip_unchecked_steps()
             self._sequence_repeat_count = 0
             self._execute_sequence_step()
             return
@@ -443,6 +455,7 @@ class CanDiagnosticController(QObject):
 
         self._sequence_repeat_count = 0
         self._sequence_index += 1
+        self._skip_unchecked_steps()
 
         if self._sequence_index >= len(self.panel.step_ids):
             self._finish_sequence(completed=True)

@@ -82,7 +82,7 @@ class CanSequenceToolbarAndExecutionTests(unittest.TestCase):
         self.panel.vehicle_selector.fn_set_vehicle("VF5NP")
 
     def test_toolbar_layout_and_button_texts(self):
-        """Test layout: Left (Vehicle, +Add Row, Delete, Setting) and Right (RUN, EXPORT, STOP)."""
+        """Test layout: RUN, EXPORT, STOP first, then Vehicle, +Add Row, Delete, Setting."""
         # Title must be hidden / not added to toolbar
         self.assertTrue(self.panel.title.isHidden())
 
@@ -106,18 +106,15 @@ class CanSequenceToolbarAndExecutionTests(unittest.TestCase):
         toolbar = self.panel.layout().itemAt(0)
         self.assertIsInstance(toolbar, QHBoxLayout)
 
-        # Left items: vehicle_selector, btn_add, btn_delete, btn_settings
-        self.assertIs(toolbar.itemAt(0).widget(), self.panel.vehicle_selector)
-        self.assertIs(toolbar.itemAt(1).widget(), self.panel.btn_add)
-        self.assertIs(toolbar.itemAt(2).widget(), self.panel.btn_delete)
-        self.assertIs(toolbar.itemAt(3).widget(), self.panel.btn_settings)
-
-        # Right items: btn_run, btn_export, btn_stop
-        # Item 4 is stretch spacer
-        self.assertIsNone(toolbar.itemAt(4).widget())
-        self.assertIs(toolbar.itemAt(5).widget(), self.panel.btn_run)
-        self.assertIs(toolbar.itemAt(6).widget(), self.panel.btn_export)
-        self.assertIs(toolbar.itemAt(7).widget(), self.panel.btn_stop)
+        # Left items, in the table's left margin: RUN | EXPORT | STOP, then Vehicle, +Add Row, Delete, Setting.
+        self.assertIs(toolbar.itemAt(0).widget(), self.panel.btn_run)
+        self.assertIs(toolbar.itemAt(1).widget(), self.panel.btn_export)
+        self.assertIs(toolbar.itemAt(2).widget(), self.panel.btn_stop)
+        self.assertIsNone(toolbar.itemAt(3).widget())  # Fixed gap after the three action buttons.
+        self.assertIs(toolbar.itemAt(4).widget(), self.panel.vehicle_selector)
+        self.assertIs(toolbar.itemAt(5).widget(), self.panel.btn_add)
+        self.assertIs(toolbar.itemAt(6).widget(), self.panel.btn_delete)
+        self.assertIs(toolbar.itemAt(7).widget(), self.panel.btn_settings)
 
     def test_run_and_stop_button_signals(self):
         """Test that clicking RUN and STOP emits the proper panel signals."""

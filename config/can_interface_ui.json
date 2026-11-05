@@ -35,7 +35,6 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\503.ACM&BasicDID.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\504.ACM&CDS&1.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\504.ACM&CDS&INDIA.json",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\506.ACM&IO.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\511.ACM&Initialization.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\512.ACM&ReadEDR.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\600.AVAS&S.json",
@@ -133,7 +132,7 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\test 2.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\test 3.json"
     ],
-    "selected_id": "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9306.MHU&IO.json",
+    "selected_id": "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0002.READ VIN.json",
     "vehicles": {
         "C:\\REDO\\CODINGTOOL\\config\\diagnostic_sequences\\0002_READ_VIN copy.json": "LIMO",
         "C:\\VF5NP\\SW\\Version 3.2 CBT\\Version 3.2 CBT\\SeqList\\0001.READ&CDS.diag": "VF5NP",
@@ -299,6 +298,12 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9327.MHU&ClearProvovision.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9328.MHU&F115&0.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9307.MHU&StoreAndroid.json",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9306.MHU&IO.json"
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9306.MHU&IO.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\206.BCM&IO.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\206.BCM&IO&R.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\511.ACM&Initialization.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\706.BPM&IO.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\706.BPM&IO&R.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\204.BCM&CDS&ORVM.json"
     ]
 }

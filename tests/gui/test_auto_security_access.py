@@ -336,6 +336,36 @@ class AutoSecurityGuiTests(unittest.TestCase):
         self.assertEqual([self.panel.table.item(row, self.panel.COL_RECEIVE).text() for row in (1, 2)],
                          ['6F F0 AC 03 00', '6F F0 AC 03 01'])
 
+    def io_sequence(self):
+        from core.diagnostic_sequence import DiagnosticStep, DiagnosticTestCase
+        self.tab._on_sequence_selected(DiagnosticTestCase(1, 'IO', '', True, [
+            DiagnosticStep(1, 'Session', 'BCM', '10 03', expected_response='50 03'),
+            DiagnosticStep(2, '', 'BCM', '2F F0 AC 03 00', expected_response='6F F0 AC 03 00'),
+            DiagnosticStep(3, '', 'BCM', '2F F0 AC 03 01', expected_response='6F F0 AC 03 01')]))
+        self.panel.vehicle_selector.fn_set_vehicle('BENCH')
+
+    def test_run_executes_only_the_checked_rows(self):
+        from PySide6.QtCore import Qt
+        self.io_sequence()
+        self.assertEqual(self.panel.checked_step_ids(), tuple(self.panel.step_ids))  # All rows by default.
+        self.panel.table.item(1, self.panel.COL_CHECK).setCheckState(Qt.Unchecked)
+        self.panel.btn_run.click()
+        self.wait(lambda: not self.tab.diagnostic_controller._sequence_running
+                  and self.outcome(2) not in ('Running', '\u2014'))
+        self.assertEqual([self.outcome(row) for row in range(3)], ['Passed', '\u2014', 'Passed'])
+        self.assertEqual([p[:3] for p in self.backend.requests], [b'\x10\x03', b'\x2f\xf0\xac'])
+        self.assertEqual(self.backend.requests[1], bytes.fromhex('2F F0 AC 03 01'))
+
+    def test_run_with_nothing_checked_sends_nothing_and_says_why(self):
+        from PySide6.QtCore import Qt
+        self.io_sequence()
+        for row in range(3):
+            self.panel.table.item(row, self.panel.COL_CHECK).setCheckState(Qt.Unchecked)
+        self.panel.btn_run.click()
+        self.assertFalse(self.tab.diagnostic_controller._sequence_running)
+        self.assertEqual(self.backend.requests, [])
+        self.assertIn('Select at least one', self.panel.notice.text())
+
     def test_stale_6702_queued_before_workflow_cannot_prove_unlock(self):
         self.extended()
         self.backend._response(b'\x67\x02')
