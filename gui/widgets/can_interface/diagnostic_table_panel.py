@@ -28,6 +28,7 @@ from gui.widgets.controls.action_button import ActionButton
 from gui.widgets.controls.primary_combobox import PrimaryComboBox
 
 from gui.widgets.controls.primary_label import PrimaryLabel
+from gui.widgets.controls.secondary_button import SecondaryButton
 
 from gui.widgets.diagnostic.diagnostic_sequence_table import DiagnosticSequenceTable
 
@@ -560,6 +561,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         self._applying_import_settings = False
 
+        self._import_undo = []
+
         self._runtime = {}
 
         self._auto_comments = {}
@@ -606,6 +609,16 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         self.execution_layout.insertWidget(import_index + 1, self.lbl_import_ecu)
 
         self.execution_layout.insertWidget(import_index + 2, self.cmb_import_ecu)
+
+        self.btn_import_undo = SecondaryButton("Undo", width=90)
+
+        self.btn_import_undo.setToolTip("Undo the last Import (restores the Loop, Delay and ECU it changed).")
+
+        self.btn_import_undo.setEnabled(False)
+
+        self.btn_import_undo.clicked.connect(self.undo_import)
+
+        self.execution_layout.insertWidget(self.execution_layout.indexOf(self.btn_import_delay) + 1, self.btn_import_undo)
 
         self._refresh_import_ecu_combo()
 
@@ -776,6 +789,10 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
         # Every row is selected to run by default.
         self._checked = set(self.step_ids)
+
+        self._import_undo.clear()
+
+        self.btn_import_undo.setEnabled(False)
 
         self._runtime.clear()
 
@@ -1720,35 +1737,105 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
     def fn_import_execution_values_to_rows(self):
 
-        """Write Loop, Delay and ECU into every checked row (the row under the cursor is irrelevant)."""
+        """Loop and Delay go to every checked row; the ECU goes only to the row(s) under the cursor."""
 
         if self._test_case is None or not self._test_case.steps:
 
             return
 
-        rows = [row for row, key in enumerate(self.step_ids) if key in self._checked]
+        checked_rows = {row for row, key in enumerate(self.step_ids) if key in self._checked}
 
-        if not rows:
+        cursor_rows = set(self._selected_rows())
 
-            self.show_notice("Check the rows to import into first.")
+        ecu = self.cmb_import_ecu.currentData() or ""
+
+        if not checked_rows and not (ecu and cursor_rows):
+
+            self.show_notice("Check the rows to import into first (the ECU goes to the selected row).")
 
             return
 
-        changes = {"delay_ms": self.spn_command_delay.value(), "repeat": self.spn_loop.value()}
+        steps = list(self._test_case.steps)
 
-        ecu = self.cmb_import_ecu.currentData()
+        undo = []
 
-        if ecu:
+        for row in sorted(checked_rows | (cursor_rows if ecu else set())):
 
-            changes["ecu"] = ecu
+            changes = {}
 
-        cursor_rows = self._selected_rows()
+            if row in checked_rows:
+
+                changes.update(delay_ms=self.spn_command_delay.value(), repeat=self.spn_loop.value())
+
+            if ecu and row in cursor_rows:
+
+                changes["ecu"] = ecu
+
+            previous = {name: getattr(steps[row], name) for name in changes}
+
+            if previous == changes:
+
+                continue
+
+            steps[row] = replace(steps[row], **changes)
+
+            undo.append((self.step_ids[row], previous))
+
+        if not undo:
+
+            self.show_notice("Nothing to change: the selected rows already have these values.")
+
+            return
+
+        self._import_undo.append(undo)
+
+        del self._import_undo[:-50]
+
+        self.btn_import_undo.setEnabled(True)
+
+        self._apply_import_steps(steps)
+
+    def undo_import(self):
+
+        """Put back what the last Import changed (and only that: later edits are kept)."""
+
+        if not self._import_undo or self._test_case is None:
+
+            return
+
+        undo = self._import_undo.pop()
+
+        self.btn_import_undo.setEnabled(bool(self._import_undo))
+
+        row_of = {key: row for row, key in enumerate(self.step_ids)}
 
         steps = list(self._test_case.steps)
 
-        for row in rows:
+        restored = 0
 
-            steps[row] = replace(steps[row], **changes)
+        for key, previous in undo:
+
+            row = row_of.get(key)
+
+            if row is not None:
+
+                steps[row] = replace(steps[row], **previous)
+
+                restored += 1
+
+        if not restored:
+
+            self.show_notice("Nothing to undo: the imported rows no longer exist.")
+
+            return
+
+        self._apply_import_steps(steps)
+
+        self.show_notice("Import undone.")
+
+    def _apply_import_steps(self, steps):
+
+        cursor_rows = self._selected_rows()
 
         self._replace_steps(steps)
 
@@ -2133,6 +2220,8 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
             self.lbl_import_ecu.fn_refresh_theme()
 
             self.cmb_import_ecu.fn_refresh_theme()
+
+            self.btn_import_undo.fn_refresh_theme()
 
             fn_apply_scrollbar_style(self.cmb_import_ecu.view())
 

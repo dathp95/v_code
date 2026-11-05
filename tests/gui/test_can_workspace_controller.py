@@ -166,6 +166,7 @@ class CanWorkspaceControllerTests(unittest.TestCase):
             panel.spn_loop.setValue(4)
             panel.spn_command_delay.setValue(700)
             panel.cmb_import_ecu.setCurrentIndex(panel.cmb_import_ecu.findText('EPS'))
+            panel.table.selectRow(0)  # ECU goes to the cursor row; Loop and Delay to every checked row.
             panel.btn_import_delay.click()
             self.assertIsNotNone(controller.save_sequence())
             # "Restart": brand-new objects reading the same files.
