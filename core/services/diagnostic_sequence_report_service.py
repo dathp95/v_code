@@ -37,12 +37,12 @@ SEQUENCE_REPORT_HEADERS = [
 
 # Fixed layout (characters): long HEX / text columns wrap inside their cell instead of widening the sheet.
 COLUMN_WIDTHS = {
-    "Step": 7,
+    "Step": 8,
     "Test sequence name": 34,
     "ECU": 10,
     "Payload (HEX)": 42,
-    "Delay (ms)": 11,
-    "Repeat": 9,
+    "Delay (ms)": 13,
+    "Repeat": 10,
     "Expected Response (HEX)": 42,
     "Receive Message (HEX)": 42,
     "Results": 12,

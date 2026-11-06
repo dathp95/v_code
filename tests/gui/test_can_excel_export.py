@@ -117,6 +117,25 @@ class ExcelExportTests(unittest.TestCase):
         suggested, _ = self.export(env, env.root / 'logs')
         self.assertEqual(load_workbook(suggested)['9601.a']['J3'].value, 'edited, not saved')
 
+    def test_blank_test_sequence_names_stay_blank_and_never_borrow_the_sequence_name(self):
+        env = self.make(['9601.a', '9602.b'])
+        env.controller.restore()  # 9601.a open (live path); 9602.b in the background (stored path).
+        for row in range(env.panel.table.rowCount()):
+            self.assertEqual(env.panel.table.item(row, env.panel.COL_SEQUENCE_NAME).text(), 'step %d' % (row + 1))
+            env.panel.table.item(row, env.panel.COL_SEQUENCE_NAME).setText('')
+        self.tick(env, '9601.a', '9602.b')
+        suggested, _ = self.export(env, env.root / 'logs')
+        book = load_workbook(suggested)
+        live, background = book['9601.a'], book['9602.b']
+        self.assertEqual([live['B3'].value, live['B4'].value], [None, None])
+        self.assertEqual([background['B3'].value, background['B4'].value], ['step 1', 'step 2'])
+
+    def test_background_sequence_without_step_names_leaves_the_column_empty(self):
+        from gui.widgets.can_interface.excel_export import sheet_for_case
+        blank = DiagnosticTestCase(1, 'My Sequence', '', True, [DiagnosticStep(1, '', 'BCM', '10 03')])
+        name, rows = sheet_for_case(blank)
+        self.assertEqual((name, rows[0]['sequence_name']), ('My Sequence', ''))
+
     def test_nothing_ticked_exports_the_open_sequence_only(self):
         env = self.make(['9601.a', '9602.b'])
         env.controller.restore()

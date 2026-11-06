@@ -2428,7 +2428,7 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
                 comment = comment_item.text()
 
             seq_item = self.table.item(row, self.COL_SEQUENCE_NAME)
-            step_seq_name = seq_item.text() if seq_item is not None and seq_item.text().strip() else (step.sequence_name if step else seq_name)
+            step_seq_name = seq_item.text() if seq_item is not None and seq_item.text().strip() else (step.sequence_name if step else "")
 
             ecu_cell = self.table.cellWidget(row, self.COL_ECU)
             ecu_text = ecu_cell.currentText() if ecu_cell is not None else (step.ecu if step else "")

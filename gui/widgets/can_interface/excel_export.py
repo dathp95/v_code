@@ -53,7 +53,7 @@ def sheet_for_case(case, runtime_rows=()):
         payload, outcome, _detail = remembered if remembered else ("", "", "")
         data.append({
             "step": index + 1,
-            "sequence_name": step.sequence_name or case.name,
+            "sequence_name": step.sequence_name,
             "ecu": step.ecu,
             "request": step.request,
             "delay_ms": 100 if step.delay_ms is None else step.delay_ms,
