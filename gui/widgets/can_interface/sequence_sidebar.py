@@ -37,6 +37,7 @@ class CanSequenceSidebar(DiagnosticSequenceList):
     checked_sequences_changed = Signal(tuple)
     order_save_requested = Signal(tuple)
     add_requested = Signal()
+    add_advanced_requested = Signal()
     import_requested = Signal()
     import_folder_requested = Signal()
     export_requested = Signal()
@@ -324,6 +325,15 @@ class CanSequenceSidebar(DiagnosticSequenceList):
             else ""
         )
 
+        menu = self.build_sequence_context_menu(source_id)
+
+        menu.exec(
+            self.list_sequences.viewport().mapToGlobal(
+                position
+            )
+        )
+
+    def build_sequence_context_menu(self, source_id):
         is_sequence = bool(source_id)
 
         menu = QMenu(self.list_sequences)
@@ -376,6 +386,11 @@ class CanSequenceSidebar(DiagnosticSequenceList):
         add_action(
             "+ Add sequence",
             self.add_requested.emit,
+        )
+
+        add_action(
+            "+ Add sequence advance",
+            self.add_advanced_requested.emit,
         )
 
         add_action(
@@ -434,11 +449,7 @@ class CanSequenceSidebar(DiagnosticSequenceList):
             self.order_is_dirty(),
         )
 
-        menu.exec(
-            self.list_sequences.viewport().mapToGlobal(
-                position
-            )
-        )
+        return menu
 
 
     def _export_context_sequence(self, source_id):

@@ -9,6 +9,8 @@ from PySide6.QtCore import QObject
 from PySide6.QtWidgets import QFileDialog, QMessageBox, QInputDialog, QDialog
 from core.diagnostic_sequence import DiagnosticTestCase
 from core.vehicle_dll_paths import safe_component
+from core.sequence_exchange import SequenceImport
+from gui.dialogs.advanced_sequence_dialog import AdvancedSequenceDialog
 from gui.dialogs.sequence_exchange_dialog import SequenceExchangeDialog
 from services.can.diag_batch_converter import (
     convert_diag_folder,
@@ -43,6 +45,7 @@ class CanWorkspaceController(QObject):
         panel.apply_import_settings(**store.load().import_settings)
         panel.document_changed.connect(self._sync_actions)
         sidebar.add_requested.connect(self.add_sequence)
+        sidebar.add_advanced_requested.connect(self.add_sequence_advanced)
         sidebar.import_requested.connect(self.import_sequence)
         panel.import_sequence_requested.connect(self.import_sequence)
         panel.export_sequence_requested.connect(self.export_sequence)
@@ -615,6 +618,19 @@ class CanWorkspaceController(QObject):
         dialog.setStandardButtons(QMessageBox.Ok)
         dialog.exec()
 
+
+    def add_sequence_advanced(self):
+        """New sequence whose steps are a typed template repeated for every ticked ECU of a Vehicle."""
+        dialog = AdvancedSequenceDialog(
+            self.panel, vehicle_service=self.panel._vehicle_service, vehicle=self.panel.fn_current_vehicle())
+        if dialog.exec() != QDialog.Accepted:
+            return False
+        if not self.add_sequence(dialog.name):
+            return False
+        # The ECU names only resolve once the same Vehicle is selected.
+        self.panel.vehicle_selector.fn_set_vehicle(dialog.vehicle)
+        self.panel.apply_import(SequenceImport(tuple(dialog.steps), ()), 'replace')
+        return True
 
     def import_sequence(self):
         names = {ecu.name for ecu in self.panel._available_ecus if self.panel._resolved_ecu(ecu.name)} if self.panel._current_vehicle is not None else None
