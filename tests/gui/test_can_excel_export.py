@@ -178,6 +178,19 @@ class ExcelExportTests(unittest.TestCase):
         self.assertLessEqual(abs(center.x() - area.center().x()), 2)
         self.assertLessEqual(abs(center.y() - area.center().y()), 2)
 
+    def test_every_export_button_uses_the_same_small_centered_save_dialog(self):
+        from unittest.mock import patch as _patch
+        from core.services import q_current_report_service, report_service
+        from gui.controllers import can_recording_controller
+        from gui.widgets.can_interface import excel_export
+        from gui.widgets.coding_value import coding_value_panel
+        from gui.widgets.controls import save_dialog
+        for module in (report_service, q_current_report_service, coding_value_panel, can_recording_controller,
+                       excel_export):
+            self.assertIs(module.ask_save_path, save_dialog.ask_save_path, module.__name__)
+        with _patch.object(save_dialog.QFileDialog, 'exec', return_value=0):  # Cancelled.
+            self.assertEqual(save_dialog.ask_save_path(None, 'Save', Path('C:/x/a.xlsx'), 'Excel (*.xlsx)'), '')
+
     # --- Excel layout ----------------------------------------------------------------
     def test_sheet_has_fixed_widths_wrapped_long_columns_and_app_result_colors(self):
         from core.services.diagnostic_sequence_report_service import COLUMN_WIDTHS, SEQUENCE_REPORT_HEADERS

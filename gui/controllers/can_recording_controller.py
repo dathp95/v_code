@@ -4,10 +4,19 @@ from pathlib import Path
 import re
 
 from PySide6.QtCore import QObject,QTimer
-from PySide6.QtWidgets import QFileDialog,QMessageBox
+from PySide6.QtWidgets import QMessageBox
+from gui.widgets.controls.export_toast import show_export_toast
+from gui.widgets.controls.save_dialog import ask_save_path
 from config.paths import CAN_INTERFACE_LOG_DIR
 from services.can import CANConnectionState
 from services.can.can_csv_export import export_retained_csv
+
+
+def day_folder(now=None):
+    """CAN_Interface_Logs/<dd-mm-yyyy>, created on demand: BLF and CSV files are filed by day."""
+    folder = CAN_INTERFACE_LOG_DIR / (now or datetime.now()).strftime('%d-%m-%Y')
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
 
 
 def suggested_name(vehicle,suffix):
@@ -45,10 +54,10 @@ class CanRecordingController(QObject):
         self.refresh()
 
     def destination(self,suffix):
-        CAN_INTERFACE_LOG_DIR.mkdir(parents=True,exist_ok=True)
-        filename,_=QFileDialog.getSaveFileName(self.panel,f'Export {suffix.upper()}',
-            str(CAN_INTERFACE_LOG_DIR/suggested_name(self.vehicle_name(),suffix)),
-            f'{suffix.upper()} (*.{suffix})',options=QFileDialog.DontConfirmOverwrite)
+        folder=day_folder()
+        filename=ask_save_path(self.panel,f'Export {suffix.upper()}',
+            folder/suggested_name(self.vehicle_name(),suffix),
+            f'{suffix.upper()} (*.{suffix})',default_suffix=suffix,confirm_overwrite=False)
         if not filename: return None,False
         path=Path(filename)
         if path.suffix.lower()!=f'.{suffix}': path=path.with_suffix(f'.{suffix}')
@@ -81,6 +90,7 @@ class CanRecordingController(QObject):
             if path is None: return
             count=export_retained_csv(path,frames,overwrite=overwrite)
             self.panel.show_export_notice(f'Exported {count} retained frames. CSV is not a complete bus log.')
+            show_export_toast(self.panel,path,title='CSV exported')
         except (OSError,ValueError) as error:
             self.panel.show_export_notice(f'CSV export failed: {error}')
 

@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import QMessageBox
 
 from core.services.report_service import ReportService
+from gui.widgets.controls.export_toast import show_export_toast
 
 
 class ReportController:
@@ -37,11 +38,7 @@ class ReportController:
             if output_file is None:
                 return
 
-            QMessageBox.information(
-                parent,
-                "Export",
-                f"Excel report saved:\n\n{output_file}",
-            )
+            show_export_toast(parent, output_file, title="Excel report saved")
 
         except Exception as error:
             QMessageBox.critical(

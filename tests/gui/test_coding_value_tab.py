@@ -2405,10 +2405,10 @@ class CodingValueTabTests(unittest.TestCase):
 
             panel._report_service = CodingValueReportService(report_root=report_root)
             with patch(
-                "gui.widgets.coding_value.coding_value_panel.QFileDialog.getSaveFileName",
-                return_value=(str(custom_export_path), "Excel Files (*.xlsx)"),
+                "gui.widgets.coding_value.coding_value_panel.ask_save_path",
+                return_value=str(custom_export_path),
             ) as save_dialog, patch(
-                "gui.widgets.coding_value.coding_value_panel.QMessageBox.information"
+                "gui.widgets.coding_value.coding_value_panel.show_export_toast"
             ) as information:
                 panel.btn_export.click()
 
@@ -2417,7 +2417,7 @@ class CodingValueTabTests(unittest.TestCase):
             self.assertEqual(default_path.parent.parent, report_root)
             self.assertTrue(default_path.name.startswith("EEIV_report_Coding value_"))
             information.assert_called_once()
-            exported_path = Path(information.call_args.args[2].split("\n\n")[1])
+            exported_path = Path(information.call_args.args[1])
             self.assertEqual(exported_path, custom_export_path)
             self.assertTrue(exported_path.exists())
             self.assertEqual(exported_path.suffix, ".xlsx")
@@ -2489,14 +2489,14 @@ class CodingValueTabTests(unittest.TestCase):
 
             panel._report_service = CodingValueReportService(report_root=report_root)
             with patch(
-                "gui.widgets.coding_value.coding_value_panel.QFileDialog.getSaveFileName",
-                return_value=(str(custom_export_path), "Excel Files (*.xlsx)"),
+                "gui.widgets.coding_value.coding_value_panel.ask_save_path",
+                return_value=str(custom_export_path),
             ) as save_dialog, patch(
-                "gui.widgets.coding_value.coding_value_panel.QMessageBox.information"
+                "gui.widgets.coding_value.coding_value_panel.show_export_toast"
             ) as information:
                 panel.btn_export.click()
 
-            exported_path = Path(information.call_args.args[2].split("\n\n")[1])
+            exported_path = Path(information.call_args.args[1])
             exported = load_workbook(exported_path)
             exported_sheet = exported["Coding value_62 F1 08"]
             self.assertEqual(exported_sheet.cell(row=2, column=9).value, "No-M")

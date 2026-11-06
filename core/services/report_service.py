@@ -1,7 +1,7 @@
 from pathlib import Path
 from datetime import datetime
 from config.paths import LOG_ANALYZER_REPORT_DIR
-from PySide6.QtWidgets import QFileDialog
+from gui.widgets.controls.save_dialog import ask_save_path
 
 # Lazy import in fn_export
 
@@ -69,10 +69,10 @@ class ReportService:
 
         default_path = report_folder / default_name
 
-        output_file, _ = QFileDialog.getSaveFileName(
+        output_file = ask_save_path(
             parent,
             "Save Excel Report",
-            str(default_path),
+            default_path,
             "Excel Files (*.xlsx)",
         )
 

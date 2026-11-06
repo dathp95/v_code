@@ -1,43 +1,13 @@
 """Excel export of CAN Interface sequences: day folder, file naming, one sheet per sequence, done popup."""
 from pathlib import Path
 
-from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
+from PySide6.QtWidgets import QMessageBox
 
 from config.paths import CAN_INTERFACE_LOG_DIR
 from core.services.diagnostic_sequence_report_service import DiagnosticSequenceReportService
 from gui.widgets.can_interface.diagnostic_table_panel import result_label
 from gui.widgets.controls.export_toast import show_export_toast
-
-
-SAVE_DIALOG_SIZE = (860, 520)
-
-
-def configure_save_dialog(dialog, parent=None):
-    """Fixed, modest size, centered on the screen the window is on (not the remembered full-screen size)."""
-    width, height = SAVE_DIALOG_SIZE
-    dialog.resize(width, height)
-    screen = parent.screen() if parent is not None else QGuiApplication.primaryScreen()
-    if screen is not None:
-        area = screen.availableGeometry()
-        width, height = min(width, area.width()), min(height, area.height())
-        dialog.resize(width, height)
-        dialog.move(area.x() + (area.width() - width) // 2, area.y() + (area.height() - height) // 2)
-
-
-def ask_save_path(parent, caption, path, name_filter):
-    """Save dialog for the report; returns the chosen path or "" when cancelled."""
-    path = Path(path)
-    dialog = QFileDialog(parent, caption, str(path.parent), name_filter)
-    dialog.setAcceptMode(QFileDialog.AcceptSave)
-    dialog.setFileMode(QFileDialog.AnyFile)
-    dialog.setOption(QFileDialog.DontUseNativeDialog, True)  # The native one reopens at its last (huge) size.
-    dialog.setDefaultSuffix("xlsx")
-    dialog.selectFile(path.name)
-    configure_save_dialog(dialog, parent)
-    if dialog.exec() != QDialog.Accepted or not dialog.selectedFiles():
-        return ""
-    return dialog.selectedFiles()[0]
+from gui.widgets.controls.save_dialog import SAVE_DIALOG_SIZE, ask_save_path, configure_save_dialog  # noqa: F401
 
 
 def sheet_for_case(case, runtime_rows=()):

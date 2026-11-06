@@ -4,7 +4,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtWidgets import QFileDialog
+from gui.widgets.controls.save_dialog import ask_save_path
 
 from config.paths import Q_CURRENT_REPORT_DIR
 from core.q_current_report_export import QCurrentReportData, export_q_current_report
@@ -39,10 +39,10 @@ class QCurrentReportService:
 
     def fn_choose_output_file(self, parent, dataset_name: str) -> Path | None:
         default_path = self.fn_default_report_path(dataset_name)
-        output_file, _selected_filter = QFileDialog.getSaveFileName(
+        output_file = ask_save_path(
             parent,
             "Save Q Current Report",
-            str(default_path),
+            default_path,
             "Excel Files (*.xlsx)",
         )
         if not output_file:

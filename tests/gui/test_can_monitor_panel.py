@@ -78,3 +78,23 @@ class CanMonitorTests(unittest.TestCase):
         self.assertIn('#0078D4',monitor.btn_start.styleSheet())
         monitor.set_monitoring_state('Monitoring')
         self.assertFalse(hasattr(monitor,'status'))
+
+    def test_blf_and_csv_dialogs_start_in_the_day_folder(self):
+        import tempfile
+        from datetime import datetime
+        from pathlib import Path
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from gui.controllers import can_recording_controller as module
+        controller = SimpleNamespace(panel=None, vehicle_name=lambda: 'VF5NP')
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
+            logs = Path(directory) / 'CAN_Interface_Logs'
+            seen = []
+            with patch.object(module, 'CAN_INTERFACE_LOG_DIR', logs),                     patch.object(module, 'ask_save_path', side_effect=lambda *a, **k: (seen.append(str(a[2])) or '')):
+                for suffix in ('blf', 'csv'):
+                    self.assertEqual(module.CanRecordingController.destination(controller, suffix), (None, False))
+            today = datetime.now().strftime('%d-%m-%Y')
+            self.assertTrue((logs / today).is_dir())
+            for path, suffix in zip(seen, ('blf', 'csv')):
+                self.assertEqual(Path(path).parent, logs / today)
+                self.assertTrue(path.endswith('.' + suffix))

@@ -39,6 +39,8 @@ from core.coding_value_report_export import (
     CodingValueReportRow,
 )
 from core.services.coding_value_report_service import CodingValueReportService
+from gui.widgets.controls.export_toast import show_export_toast
+from gui.widgets.controls.save_dialog import ask_save_path
 from gui.themes.theme_manager import ThemeManager
 from gui.themes.styles.containers.groupbox_style import fn_groupbox_style
 from gui.themes.styles.controls.scrollbar_style import fn_apply_scrollbar_style
@@ -945,18 +947,14 @@ class CodingValuePanel(QGroupBox):
             )
             return
 
-        QMessageBox.information(
-            self,
-            "Coding value",
-            f"Coding value report saved:\n\n{output_file}",
-        )
+        show_export_toast(self, output_file, title="Coding value report saved")
 
     def _choose_coding_report_file(self):
         default_path = self._default_coding_report_path()
-        output_file, _ = QFileDialog.getSaveFileName(
+        output_file = ask_save_path(
             self,
             "Save Coding Value Report",
-            str(default_path),
+            default_path,
             "Excel Files (*.xlsx)",
         )
         if not output_file:

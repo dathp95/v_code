@@ -36,6 +36,7 @@ from core.q_current_loading import (
 from core.q_current_config import QCurrentConfig, load_q_current_config, save_q_current_config
 from core.q_current_report_export import QCurrentReportData, QCurrentReportSettings
 from core.services.q_current_report_service import QCurrentReportService
+from gui.widgets.controls.export_toast import show_export_toast
 from core.sleep_current_database import (
     database_path_for_source,
     default_dataset_name,
@@ -1668,11 +1669,7 @@ class QCurrentTab(QWidget):
             QMessageBox.critical(self, "Export Error", str(error))
             return None
         if output_file is not None:
-            QMessageBox.information(
-                self,
-                "Export",
-                f"Excel report saved:\n\n{output_file}",
-            )
+            show_export_toast(self, output_file, title="Excel report saved")
         return output_file
 
     def _grab_current_chart_png(self):

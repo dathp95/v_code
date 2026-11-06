@@ -811,9 +811,8 @@ class QCurrentTabTests(unittest.TestCase):
                 tab.q_current_report_service,
                 "fn_export",
                 return_value=output_file,
-            ) as export_report, patch.object(
-                QMessageBox,
-                "information",
+            ) as export_report, patch(
+                "gui.tabs.q_current_tab.show_export_toast",
             ) as information, patch.object(
                 QMessageBox,
                 "critical",
@@ -845,9 +844,8 @@ class QCurrentTabTests(unittest.TestCase):
                 tab.q_current_report_service,
                 "fn_export",
                 return_value=None,
-            ) as export_report, patch.object(
-                QMessageBox,
-                "information",
+            ) as export_report, patch(
+                "gui.tabs.q_current_tab.show_export_toast",
             ) as information, patch.object(
                 QMessageBox,
                 "critical",
@@ -870,9 +868,8 @@ class QCurrentTabTests(unittest.TestCase):
                 tab.q_current_report_service,
                 "fn_export",
                 side_effect=PermissionError("locked"),
-            ), patch.object(
-                QMessageBox,
-                "information",
+            ), patch(
+                "gui.tabs.q_current_tab.show_export_toast",
             ) as information, patch.object(
                 QMessageBox,
                 "critical",

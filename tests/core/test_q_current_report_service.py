@@ -43,15 +43,15 @@ class QCurrentReportServiceTests(unittest.TestCase):
                 now_provider=lambda: datetime(2026, 9, 29, 8, 7, 6),
             )
             with patch(
-                "core.services.q_current_report_service.QFileDialog.getSaveFileName",
-                return_value=(selected, "Excel Files (*.xlsx)"),
+                "core.services.q_current_report_service.ask_save_path",
+                return_value=selected,
             ):
                 output_path = service.fn_choose_output_file(None, "VF6_Test.db")
             self.assertEqual(output_path, Path(selected).with_suffix(".xlsx"))
 
             with patch(
-                "core.services.q_current_report_service.QFileDialog.getSaveFileName",
-                return_value=("", "Excel Files (*.xlsx)"),
+                "core.services.q_current_report_service.ask_save_path",
+                return_value="",
             ):
                 self.assertIsNone(service.fn_choose_output_file(None, "VF6_Test.db"))
 
