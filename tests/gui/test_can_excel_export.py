@@ -23,7 +23,7 @@ from gui.widgets.controls.export_toast import ExportToast, show_export_toast
 from repositories.can_interface_ui_store import CanInterfaceUiStore
 from repositories.can_sequence_repository import CanSequenceRepository
 
-DIALOG = 'gui.widgets.can_interface.excel_export.QFileDialog.getSaveFileName'
+DIALOG = 'gui.widgets.can_interface.excel_export.ask_save_path'
 TOAST = 'gui.widgets.can_interface.excel_export.show_export_toast'
 
 
@@ -64,7 +64,7 @@ class ExcelExportTests(unittest.TestCase):
 
         def accept(parent, caption, path, filters):
             suggested.append(Path(path))
-            return str(path), filters
+            return str(path)
 
         with patch(DIALOG, side_effect=accept), patch(TOAST) as toast, \
                 patch('gui.widgets.can_interface.excel_export.CAN_INTERFACE_LOG_DIR', report_dir):
@@ -127,7 +127,7 @@ class ExcelExportTests(unittest.TestCase):
     def test_cancelled_dialog_writes_nothing_and_shows_no_popup(self):
         env = self.make(['9601.a'])
         env.controller.restore()
-        with patch(DIALOG, return_value=('', '')), patch(TOAST) as toast, \
+        with patch(DIALOG, return_value=''), patch(TOAST) as toast, \
                 patch('gui.widgets.can_interface.excel_export.CAN_INTERFACE_LOG_DIR', env.root / 'logs'):
             env.panel.export_excel()
         toast.assert_not_called()
@@ -142,6 +142,45 @@ class ExcelExportTests(unittest.TestCase):
         self.assertEqual(names[:2], ['Same', 'same (2)'])
         self.assertTrue(all(len(n) <= 31 and not re.search(r'[\\/*?:\[\]]', n) for n in names))
         self.assertEqual(len(set(n.casefold() for n in names)), 3)
+
+    # --- Save dialog -----------------------------------------------------------------
+    def test_save_dialog_is_small_and_centered_on_the_screen(self):
+        from PySide6.QtGui import QGuiApplication
+        from PySide6.QtWidgets import QFileDialog
+        from gui.widgets.can_interface.excel_export import SAVE_DIALOG_SIZE, configure_save_dialog
+        dialog = QFileDialog()
+        self.addCleanup(dialog.deleteLater)
+        dialog.resize(5000, 4000)  # What a remembered full-screen size would be.
+        configure_save_dialog(dialog)
+        area = QGuiApplication.primaryScreen().availableGeometry()
+        self.assertLessEqual(dialog.width(), min(SAVE_DIALOG_SIZE[0], area.width()))
+        self.assertLessEqual(dialog.height(), min(SAVE_DIALOG_SIZE[1], area.height()))
+        center = dialog.frameGeometry().center()
+        self.assertLessEqual(abs(center.x() - area.center().x()), 2)
+        self.assertLessEqual(abs(center.y() - area.center().y()), 2)
+
+    # --- Excel layout ----------------------------------------------------------------
+    def test_sheet_has_fixed_widths_wrapped_long_columns_and_app_result_colors(self):
+        from core.services.diagnostic_sequence_report_service import COLUMN_WIDTHS, SEQUENCE_REPORT_HEADERS
+        long_hex = ' '.join(['00'] * 400)
+        rows = [{'step': i + 1, 'sequence_name': 'name', 'ecu': 'BCM', 'request': long_hex, 'delay_ms': 100,
+                 'repeat': 1, 'expected': long_hex, 'receive': long_hex, 'result': result, 'comment': long_hex}
+                for i, result in enumerate(('Passed', 'Failed', 'Timeout', '\u2014'))]
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
+            path = DiagnosticSequenceReportService(directory).export_sequences([('S', rows)], Path(directory) / 'x.xlsx')
+            sheet = load_workbook(path)['S']
+        for index, header in enumerate(SEQUENCE_REPORT_HEADERS, 1):
+            self.assertEqual(sheet.column_dimensions[chr(64 + index)].width, COLUMN_WIDTHS[header])
+        self.assertLessEqual(sum(COLUMN_WIDTHS.values()), 260)
+        for column in 'DGHJ':  # Payload, Expected, Receive, Comment.
+            self.assertTrue(sheet[f'{column}3'].alignment.wrap_text)
+        self.assertGreater(sheet.row_dimensions[3].height, 100)
+        self.assertLessEqual(sheet.row_dimensions[3].height, 409)
+        colors = {sheet[f'I{r}'].value: sheet[f'I{r}'].fill.fgColor.rgb[-6:] for r in (3, 4, 5)}
+        self.assertEqual(colors, {'Passed': '2E8B57', 'Failed': 'C0392B', 'Timeout': 'E67E22'})
+        self.assertEqual(sheet['I3'].font.color.rgb[-6:], 'FFFFFF')
+        self.assertTrue(sheet['I3'].font.bold)
+        self.assertNotEqual(sheet['I6'].fill.fill_type, 'solid')  # No result: no color.
 
     # --- popup ---------------------------------------------------------------------
     def window(self):

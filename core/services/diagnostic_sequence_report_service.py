@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from openpyxl import Workbook
-from openpyxl.styles import Font
+from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from config.paths import LOG_ANALYZER_REPORT_DIR
@@ -33,6 +33,54 @@ SEQUENCE_REPORT_HEADERS = [
     "Results",
     "Comment",
 ]
+
+
+# Fixed layout (characters): long HEX / text columns wrap inside their cell instead of widening the sheet.
+COLUMN_WIDTHS = {
+    "Step": 7,
+    "Test sequence name": 34,
+    "ECU": 10,
+    "Payload (HEX)": 42,
+    "Delay (ms)": 11,
+    "Repeat": 9,
+    "Expected Response (HEX)": 42,
+    "Receive Message (HEX)": 42,
+    "Results": 12,
+    "Comment": 40,
+}
+WRAPPED_HEADERS = frozenset({
+    "Test sequence name", "Payload (HEX)", "Expected Response (HEX)", "Receive Message (HEX)", "Comment",
+})
+LINE_HEIGHT = 15.0
+MAX_ROW_HEIGHT = 409.0  # Excel limit.
+
+# Same colors as the Results cell in the app: (fill, text).
+RESULT_COLORS = {
+    "Passed": ("2E8B57", "FFFFFF"),
+    "Failed": ("C0392B", "FFFFFF"),
+    "Error": ("C0392B", "FFFFFF"),
+    "Timeout": ("E67E22", "FFFFFF"),
+}
+
+
+def _wrapped_lines(text, width):
+    """Rough number of lines a wrapped cell needs (breaks at spaces like Excel does)."""
+    usable = max(int(width) - 2, 1)
+    lines = 0
+    for paragraph in str(text if text is not None else "").split("\n"):
+        current = 0
+        lines += 1
+        for word in paragraph.split(" "):
+            needed = len(word) + (1 if current else 0)
+            if current and current + needed > usable:
+                lines += 1
+                current = len(word)
+            else:
+                current += needed
+            while current > usable:  # A single word longer than the cell is cut by Excel.
+                lines += 1
+                current -= usable
+    return lines
 
 
 class DiagnosticSequenceReportService:
@@ -135,6 +183,7 @@ class DiagnosticSequenceReportService:
                 step_data.get("comment", ""),
             ]
             outcome = str(step_data.get("result", "")).strip()
+            lines = 1
 
             for col_idx, val in enumerate(row_values, 1):
                 cell = ws.cell(row=row_idx, column=col_idx, value=val)
@@ -143,29 +192,22 @@ class DiagnosticSequenceReportService:
 
                 if header in ("Step", "Delay (ms)", "Repeat", "ECU", "Results"):
                     cell.alignment = CENTER_ALIGNMENT
+                elif header in WRAPPED_HEADERS:
+                    cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+                    lines = max(lines, _wrapped_lines(val, COLUMN_WIDTHS[header]))
                 else:
                     cell.alignment = LEFT_ALIGNMENT
 
-                if header == "Results":
-                    if outcome == "Passed":
-                        cell.fill = PASS_FILL
-                        cell.font = Font(bold=True, color="276A3C")
-                    elif outcome in ("Failed", "Error", "Timeout"):
-                        cell.fill = FAIL_FILL
-                        cell.font = Font(bold=True, color="9C0006")
+                if header == "Results" and outcome in RESULT_COLORS:
+                    fill, text = RESULT_COLORS[outcome]
+                    cell.fill = PatternFill("solid", fgColor=fill)
+                    cell.font = Font(bold=True, color=text)
+
+            ws.row_dimensions[row_idx].height = min(max(lines, 1) * LINE_HEIGHT + 3, MAX_ROW_HEIGHT)
 
         ws.freeze_panes = "A3"
         if ws.max_column > 0 and ws.max_row >= 2:
             ws.auto_filter.ref = f"A2:{get_column_letter(ws.max_column)}{ws.max_row}"
 
-        # Adjust column widths
-        for col in ws.columns:
-            max_len = 0
-            col_letter = get_column_letter(col[0].column)
-            for cell in col:
-                if cell.row == 1:
-                    continue
-                val_str = str(cell.value or "")
-                if len(val_str) > max_len:
-                    max_len = len(val_str)
-            ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+        for col_idx, header in enumerate(SEQUENCE_REPORT_HEADERS, 1):
+            ws.column_dimensions[get_column_letter(col_idx)].width = COLUMN_WIDTHS[header]

@@ -1,12 +1,43 @@
 """Excel export of CAN Interface sequences: day folder, file naming, one sheet per sequence, done popup."""
 from pathlib import Path
 
-from PySide6.QtWidgets import QFileDialog, QMessageBox
+from PySide6.QtGui import QGuiApplication
+from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 
 from config.paths import CAN_INTERFACE_LOG_DIR
 from core.services.diagnostic_sequence_report_service import DiagnosticSequenceReportService
 from gui.widgets.can_interface.diagnostic_table_panel import result_label
 from gui.widgets.controls.export_toast import show_export_toast
+
+
+SAVE_DIALOG_SIZE = (860, 520)
+
+
+def configure_save_dialog(dialog, parent=None):
+    """Fixed, modest size, centered on the screen the window is on (not the remembered full-screen size)."""
+    width, height = SAVE_DIALOG_SIZE
+    dialog.resize(width, height)
+    screen = parent.screen() if parent is not None else QGuiApplication.primaryScreen()
+    if screen is not None:
+        area = screen.availableGeometry()
+        width, height = min(width, area.width()), min(height, area.height())
+        dialog.resize(width, height)
+        dialog.move(area.x() + (area.width() - width) // 2, area.y() + (area.height() - height) // 2)
+
+
+def ask_save_path(parent, caption, path, name_filter):
+    """Save dialog for the report; returns the chosen path or "" when cancelled."""
+    path = Path(path)
+    dialog = QFileDialog(parent, caption, str(path.parent), name_filter)
+    dialog.setAcceptMode(QFileDialog.AcceptSave)
+    dialog.setFileMode(QFileDialog.AnyFile)
+    dialog.setOption(QFileDialog.DontUseNativeDialog, True)  # The native one reopens at its last (huge) size.
+    dialog.setDefaultSuffix("xlsx")
+    dialog.selectFile(path.name)
+    configure_save_dialog(dialog, parent)
+    if dialog.exec() != QDialog.Accepted or not dialog.selectedFiles():
+        return ""
+    return dialog.selectedFiles()[0]
 
 
 def sheet_for_case(case, runtime_rows=()):
@@ -45,8 +76,7 @@ def export_sheets_excel(parent, sheets, vehicle_name="", *, report_dir=None):
     folder = service.fn_get_report_folder()  # CAN_Interface_Logs/<dd-mm-yyyy>
     single = len(sheets) == 1
     filename = service.fn_default_output_filename(sheets[0][0] if single else "", vehicle_name if single else "")
-    output_file, _ = QFileDialog.getSaveFileName(parent, "Save Excel Report", str(folder / filename),
-                                                 "Excel Files (*.xlsx)")
+    output_file = ask_save_path(parent, "Save Excel Report", folder / filename, "Excel Files (*.xlsx)")
     if not output_file:
         return None
     if not str(output_file).lower().endswith(".xlsx"):
