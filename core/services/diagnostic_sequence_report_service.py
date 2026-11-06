@@ -70,13 +70,40 @@ class DiagnosticSequenceReportService:
         steps_data: Sequence[dict[str, Any]],
         output_file: str | Path,
     ) -> Path:
+        return self.export_sequences([(sequence_name, steps_data)], output_file)
+
+    def export_sequences(
+        self,
+        sheets: Sequence[tuple[str, Sequence[dict[str, Any]]]],
+        output_file: str | Path,
+    ) -> Path:
+        """One worksheet per (sequence name, step rows) pair, in the given order."""
+        if not sheets:
+            raise ValueError("No sequence data to export.")
         wb = Workbook()
-        ws = wb.active
+        used_titles: set[str] = set()
+        for index, (sequence_name, steps_data) in enumerate(sheets):
+            ws = wb.active if index == 0 else wb.create_sheet()
+            ws.title = self._unique_sheet_title(sequence_name, used_titles)
+            self._fill_sheet(ws, steps_data)
+        output_path = Path(output_file)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        wb.save(output_path)
+        return output_path
 
+    @staticmethod
+    def _unique_sheet_title(sequence_name: str, used: set[str]) -> str:
         raw_title = str(sequence_name or "Sequence").strip()
-        safe_sheet_title = re.sub(r'[\\/*?:\[\]]', "_", raw_title)[:31] or "Sequence"
-        ws.title = safe_sheet_title
+        base = re.sub(r"[\\/*?:\[\]]", "_", raw_title)[:31] or "Sequence"
+        title, number = base, 1
+        while title.casefold() in used:
+            number += 1
+            suffix = f" ({number})"
+            title = base[:31 - len(suffix)] + suffix
+        used.add(title.casefold())
+        return title
 
+    def _fill_sheet(self, ws, steps_data: Sequence[dict[str, Any]]) -> None:
         # Row 1: Banner Header
         num_cols = len(SEQUENCE_REPORT_HEADERS)
         ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=num_cols)
@@ -142,9 +169,3 @@ class DiagnosticSequenceReportService:
                 if len(val_str) > max_len:
                     max_len = len(val_str)
             ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
-
-        output_path = Path(output_file)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        wb.save(output_path)
-        return output_path
-

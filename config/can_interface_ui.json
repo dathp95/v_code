@@ -144,7 +144,7 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\VF3_READ VIN.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\VIP3.json"
     ],
-    "selected_id": "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\Extension VF34.json",
+    "selected_id": "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0001.READ&CDS.json",
     "vehicles": {
         "C:\\REDO\\CODINGTOOL\\config\\diagnostic_sequences\\0002_READ_VIN copy.json": "LIMO",
         "C:\\VF5NP\\SW\\Version 3.2 CBT\\Version 3.2 CBT\\SeqList\\0001.READ&CDS.diag": "VF5NP",
@@ -189,7 +189,7 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\10.Extend_Session.json": "VF5NP",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\706.BPM&IO&R.json": "VF5NP",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9728.VDKCU&DKinfoUpProvisioning.json": "VF5NP",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0001.READ&CDS.json": "VF3",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0001.READ&CDS.json": "VF5NP",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0003.DVT&V1_copy.json": "VF5NP",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\303.BMS&BasicDID.json": "VF5NP",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\test 3.json": "VF5NP",

@@ -2414,33 +2414,9 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
                                     [RESULT_LABELS.get(self._runtime.get(key, ('', '', ''))[1], '') for key in self.step_ids])
 
-    def export_excel(self):
-        from core.services.diagnostic_sequence_report_service import DiagnosticSequenceReportService
-        from PySide6.QtWidgets import QFileDialog, QMessageBox
-
-        if not self._test_case or not self.step_ids:
-            QMessageBox.warning(self, "Export", "No sequence data to export.")
-            return
-
-        service = DiagnosticSequenceReportService()
-        report_folder = service.fn_get_report_folder()
+    def export_sheet(self):
+        """(sequence name, rows) of the open sequence exactly as the table shows it, results included."""
         seq_name = self._test_case.name if self._test_case else "Sequence"
-        vehicle_name = self.fn_current_vehicle()
-        default_filename = service.fn_default_output_filename(seq_name, vehicle_name)
-        default_path = report_folder / default_filename
-
-        output_file, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save Excel Report",
-            str(default_path),
-            "Excel Files (*.xlsx)",
-        )
-        if not output_file:
-            return
-
-        if not str(output_file).lower().endswith(".xlsx"):
-            output_file = str(output_file) + ".xlsx"
-
         steps_data = []
         for row, step_id in enumerate(self.step_ids):
             step = self._test_case.steps[row] if self._test_case and row < len(self._test_case.steps) else None
@@ -2494,30 +2470,28 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
                 "comment": comment,
             })
 
+        return seq_name, steps_data
+
+    # Set by the workspace controller: returns ([(name, rows), ...], vehicle) for the ticked sequences.
+    export_provider = None
+
+    def export_excel(self):
+        from gui.widgets.can_interface.excel_export import export_sheets_excel
+        from PySide6.QtWidgets import QMessageBox
+
         try:
-            saved_path = service.export_sequence(
-                sequence_name=seq_name,
-                vehicle_name=vehicle_name,
-                steps_data=steps_data,
-                output_file=output_file,
-            )
-            QMessageBox.information(
-                self,
-                "Export",
-                f"Excel report saved:\n\n{saved_path}",
-            )
-        except PermissionError:
-            QMessageBox.warning(
-                self,
-                "Export Error",
-                "Cannot save Excel report. Please close the Excel file and try again.",
-            )
-        except Exception as error:
-            QMessageBox.critical(
-                self,
-                "Export Error",
-                str(error),
-            )
+            if self.export_provider is not None:
+                sheets, vehicle_name = self.export_provider()
+            else:
+                sheets = [self.export_sheet()] if self._test_case and self.step_ids else []
+                vehicle_name = self.fn_current_vehicle()
+        except (OSError, ValueError) as error:
+            QMessageBox.warning(self, "Export", f"Cannot read a ticked sequence: {error}")
+            return
+        if not sheets:
+            QMessageBox.warning(self, "Export", "No sequence data to export.")
+            return
+        export_sheets_excel(self, sheets, vehicle_name)
 
     def apply_import(self, imported, mode):
 

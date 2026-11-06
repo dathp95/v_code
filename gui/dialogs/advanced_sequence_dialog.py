@@ -56,7 +56,7 @@ class AdvancedSequenceDialog(QDialog):
         self.lbl_vehicle = PrimaryLabel("Vehicle")
         self.vehicle_combo = PrimaryComboBox(minimum_height=34)
         self.vehicle_combo.setMinimumWidth(160)
-        for widget in (self.lbl_name, self.name_edit, self.lbl_vehicle, self.vehicle_combo):
+        for widget in (self.lbl_vehicle, self.vehicle_combo, self.lbl_name, self.name_edit):
             top.addWidget(widget, 1 if widget is self.name_edit else 0)
         layout.addLayout(top)
 
@@ -343,6 +343,8 @@ class AdvancedSequenceDialog(QDialog):
             f"QPlainTextEdit {{ background: {colors.WINDOW}; color: {colors.TEXT}; border: 1px solid {colors.BORDER}; "
             f"border-radius: 6px; padding: 6px; font-family: Consolas; }}")
         fn_apply_scrollbar_style(self.paste_edit)
+        for combo in (self.vehicle_combo, self.mode_combo):
+            fn_apply_scrollbar_style(combo.view())
         for widget in (self.lbl_name, self.name_edit, self.lbl_vehicle, self.vehicle_combo, self.lbl_ecus,
                        self.chk_all, self.lbl_summary, self.lbl_import_status, self.mode_combo, self.btn_add_row,
                        self.btn_delete_row, self.btn_cancel, self.btn_apply):

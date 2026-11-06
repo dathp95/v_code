@@ -157,8 +157,8 @@ class CanSequenceToolbarAndExecutionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             target_path = Path(tmpdir) / "exported_seq.xlsx"
 
-            with patch("PySide6.QtWidgets.QFileDialog.getSaveFileName", return_value=(str(target_path), "Excel Files (*.xlsx)")), \
-                 patch("PySide6.QtWidgets.QMessageBox.information") as mock_info:
+            with patch("gui.widgets.can_interface.excel_export.QFileDialog.getSaveFileName", return_value=(str(target_path), "Excel Files (*.xlsx)")), \
+                 patch("gui.widgets.can_interface.excel_export.show_export_toast") as mock_info:
                 self.panel.export_excel()
 
                 self.assertTrue(target_path.exists())

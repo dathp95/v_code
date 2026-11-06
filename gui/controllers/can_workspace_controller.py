@@ -44,6 +44,7 @@ class CanWorkspaceController(QObject):
         panel.import_settings_changed.connect(self._save_import_settings)
         panel.apply_import_settings(**store.load().import_settings)
         panel.document_changed.connect(self._sync_actions)
+        panel.export_provider = self.export_sheets
         for signal in (panel.runtime_changed, panel.selected_rows_changed, panel.document_changed,
                        panel.sequence_modified, panel.row_selected):
             signal.connect(self._update_progress)
@@ -476,6 +477,29 @@ class CanWorkspaceController(QObject):
 
         self._session_drafts[self.document_id] = case
         self._session_dirty.add(self.document_id)
+
+    def export_sheets(self):
+        """([(sequence name, rows), ...], vehicle) for EXPORT: every ticked sequence, else the open one."""
+        from gui.widgets.can_interface.excel_export import sheet_for_case
+
+        ids = self.sidebar.checked_ids()
+        if not ids:
+            if self.panel.fn_current_sequence() is None or not self.panel.step_ids:
+                return [], ""
+            return [self.panel.export_sheet()], self.panel.fn_current_vehicle()
+        sheets = []
+        for source_id in ids:
+            if source_id == self.document_id:
+                sheets.append(self.panel.export_sheet())
+                continue
+            case = self._case_for_source(source_id)
+            remembered = self._session_runtime.get(source_id)
+            sheets.append(sheet_for_case(case, remembered[1] if remembered else ()))
+        if ids[0] == self.document_id:
+            vehicle = self.panel.fn_current_vehicle()
+        else:
+            vehicle = self.store.load().vehicles.get(ids[0], "")
+        return sheets, vehicle
 
     def _update_progress(self, *_):
         self.sidebar.set_progress(*self.panel.run_progress())

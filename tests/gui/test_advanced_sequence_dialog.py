@@ -274,6 +274,21 @@ class AdvancedSequenceDialogTests(unittest.TestCase):
         self.assertTrue(dialog.paste_edit.isHidden())
         self.assertEqual(dialog.table.rowCount(), 3)  # Going back keeps what was loaded.
 
+    def test_top_row_is_vehicle_then_combobox_then_sequence_name(self):
+        dialog = self.make()
+        dialog.show()
+        self.app.processEvents()
+        widgets = (dialog.lbl_vehicle, dialog.vehicle_combo, dialog.lbl_name, dialog.name_edit)
+        xs = [w.mapTo(dialog, w.rect().topLeft()).x() for w in widgets]
+        self.assertEqual(xs, sorted(xs))
+        self.assertEqual(len({w.mapTo(dialog, w.rect().center()).y() for w in widgets}), 1)
+
+    def test_combobox_popups_use_the_themed_scrollbar(self):
+        from gui.themes.styles.controls.scrollbar_style import fn_scrollbar_style
+        dialog = self.make()
+        for combo in (dialog.vehicle_combo, dialog.mode_combo):
+            self.assertEqual(combo.view().verticalScrollBar().styleSheet(), fn_scrollbar_style())
+
     def test_cancel_leaves_nothing_behind(self):
         dialog = self.make()
         dialog.btn_cancel.click()
