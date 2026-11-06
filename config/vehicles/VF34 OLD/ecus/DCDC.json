@@ -1,0 +1,14 @@
+{
+    "name": "DCDC",
+    "request_id": "6A6",
+    "response_id": "626",
+    "aliases": [],
+    "resources": {
+        "dll": "",
+        "dbc": "",
+        "odx": "",
+        "dtc": "",
+        "request_library": ""
+    },
+    "quick_requests": []
+}

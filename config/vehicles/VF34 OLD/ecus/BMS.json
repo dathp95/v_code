@@ -1,0 +1,14 @@
+{
+    "name": "BMS",
+    "request_id": "693",
+    "response_id": "613",
+    "aliases": [],
+    "resources": {
+        "dll": "",
+        "dbc": "",
+        "odx": "",
+        "dtc": "",
+        "request_library": ""
+    },
+    "quick_requests": []
+}

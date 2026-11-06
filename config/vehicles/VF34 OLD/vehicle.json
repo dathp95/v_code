@@ -1,0 +1,25 @@
+{
+    "name": "VF34 OLD",
+    "manufacturer": "",
+    "version": "1.0.0",
+    "description": "",
+    "ecus": [
+        "ACU",
+        "BCM",
+        "BPM",
+        "ETG",
+        "BMS",
+        "EDS",
+        "DCDC",
+        "VCU",
+        "OBC",
+        "EPS",
+        "EKS",
+        "MHU",
+        "CCU",
+        "XGW",
+        "ESC",
+        "IPC",
+        "BSD"
+    ]
+}

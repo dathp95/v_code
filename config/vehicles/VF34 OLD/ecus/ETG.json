@@ -1,0 +1,14 @@
+{
+    "name": "ETG",
+    "request_id": "68E",
+    "response_id": "60E",
+    "aliases": [],
+    "resources": {
+        "dll": "",
+        "dbc": "",
+        "odx": "",
+        "dtc": "",
+        "request_library": ""
+    },
+    "quick_requests": []
+}

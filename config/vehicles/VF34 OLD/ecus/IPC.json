@@ -1,0 +1,14 @@
+{
+    "name": "IPC",
+    "request_id": "683",
+    "response_id": "603",
+    "aliases": [],
+    "resources": {
+        "dll": "",
+        "dbc": "",
+        "odx": "",
+        "dtc": "",
+        "request_library": ""
+    },
+    "quick_requests": []
+}

@@ -1,0 +1,14 @@
+{
+    "name": "BPM",
+    "request_id": "6FB",
+    "response_id": "67B",
+    "aliases": [],
+    "resources": {
+        "dll": "",
+        "dbc": "",
+        "odx": "",
+        "dtc": "",
+        "request_library": ""
+    },
+    "quick_requests": []
+}

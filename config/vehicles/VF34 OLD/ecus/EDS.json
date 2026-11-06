@@ -1,0 +1,14 @@
+{
+    "name": "EDS",
+    "request_id": "69B",
+    "response_id": "61B",
+    "aliases": [],
+    "resources": {
+        "dll": "",
+        "dbc": "",
+        "odx": "",
+        "dtc": "",
+        "request_library": ""
+    },
+    "quick_requests": []
+}
