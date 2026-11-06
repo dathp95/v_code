@@ -194,6 +194,86 @@ class AdvancedSequenceDialogTests(unittest.TestCase):
         dialog.name_edit.clear()
         self.assertEqual(dialog.btn_apply.toolTip(), 'Require sequence name')
 
+    # --- Import Sequence mode: paste an exported sequence, its ECU column is dropped ------
+    def exported(self):
+        from core.diagnostic_sequence import DiagnosticStep
+        from core.sequence_exchange import export_sequence_text
+        return export_sequence_text([
+            DiagnosticStep(1, 'Start Diagnostic Session', 'SGC', '10 03', 100, 1, '50 03'),
+            DiagnosticStep(2, 'Perform Security Access', 'SGC', '27 01', 100, 1, '67 02', comment='01,02: AfterSales'),
+            DiagnosticStep(3, '', 'SGC', '2E F1 90 4D 47', None, 2, '6E F1 90')])
+
+    def cells(self, dialog, row):
+        return [dialog.table.item(row, c).text() for c in (dialog.COL_NAME, dialog.COL_ECU, dialog.COL_REQUEST,
+                                                           dialog.COL_DELAY, dialog.COL_REPEAT, dialog.COL_EXPECTED,
+                                                           dialog.COL_COMMENT)]
+
+    def test_mode_combo_defaults_to_default_and_sits_before_add_and_delete_row(self):
+        dialog = self.make()
+        combo = dialog.mode_combo
+        self.assertEqual([combo.itemText(i) for i in range(combo.count())], ['Import Sequence', 'Default'])
+        self.assertEqual(combo.currentText(), 'Default')
+        self.assertTrue(dialog.paste_edit.isHidden())
+        self.app.processEvents()
+        positions = [w.mapTo(dialog, w.rect().topLeft()) for w in (combo, dialog.btn_add_row, dialog.btn_delete_row)]
+        self.assertTrue(positions[0].x() < positions[1].x() < positions[2].x())  # Combobox | +Add row | Delete row
+        self.assertEqual(len({p.y() + w.height() // 2 for p, w in zip(positions, (combo, dialog.btn_add_row, dialog.btn_delete_row))}), 1)
+
+    def test_pasting_an_exported_sequence_fills_the_table_without_its_ecu_names(self):
+        dialog = self.make()
+        dialog.mode_combo.setCurrentIndex(dialog.mode_combo.findText('Import Sequence'))
+        self.assertFalse(dialog.paste_edit.isHidden())
+        dialog.paste_edit.setPlainText(self.exported())
+        self.assertEqual(dialog.table.rowCount(), 3)
+        self.assertEqual(self.cells(dialog, 0), ['Start Diagnostic Session', '(per ECU)', '10 03', '100', '1', '50 03', ''])
+        self.assertEqual(self.cells(dialog, 1)[6], '01,02: AfterSales')
+        self.assertEqual(self.cells(dialog, 2), ['', '(per ECU)', '2E F1 90 4D 47', '', '2', '6E F1 90', ''])
+        self.assertTrue(all('SGC' not in ''.join(self.cells(dialog, r)) for r in range(3)))  # The ECU column is dropped.
+        self.assertEqual([dialog.table.item(r, dialog.COL_STEP).text() for r in range(3)], ['1', '2', '3'])
+        self.assertEqual(dialog.table.item(0, dialog.COL_RECEIVE).text(), '\u2014')
+        self.assertEqual(dialog.table.item(0, dialog.COL_RESULT).text(), '\u2014')
+        self.assertIn('3', dialog.lbl_import_status.text())
+
+    def test_pasted_rows_render_for_every_ticked_ecu_and_rows_can_still_be_added_or_deleted(self):
+        dialog = self.make()
+        dialog.mode_combo.setCurrentIndex(dialog.mode_combo.findText('Import Sequence'))
+        dialog.paste_edit.setPlainText(self.exported())
+        dialog.name_edit.setText('From export')
+        dialog.btn_add_row.click()  # Add row keeps working...
+        self.assertEqual(dialog.table.rowCount(), 4)
+        self.type_row(dialog, 3, 'extra', '10 01')
+        dialog.table.selectRow(1)
+        dialog.btn_delete_row.click()  # ...and so does Delete row.
+        self.assertEqual(dialog.table.rowCount(), 3)
+        self.assertEqual([dialog.table.item(r, dialog.COL_STEP).text() for r in range(3)], ['1', '2', '3'])
+        dialog.ecu_list.item(5).setCheckState(Qt.Unchecked)
+        dialog.btn_apply.click()
+        self.assertEqual(len(dialog.steps), 3 * 5)
+        self.assertEqual([s.ecu for s in dialog.steps[:3]], ['BCM'] * 3)
+        self.assertEqual([s.ecu for s in dialog.steps[3:6]], ['BMS'] * 3)
+        self.assertEqual([s.sequence_name for s in dialog.steps[:3]], ['Start Diagnostic Session', '', 'extra'])
+        self.assertNotIn('SGC', {s.ecu for s in dialog.steps})
+
+    def test_import_mode_is_lenient_and_only_unreadable_text_is_refused(self):
+        dialog = self.make()
+        dialog.mode_combo.setCurrentIndex(dialog.mode_combo.findText('Import Sequence'))
+        dialog.paste_edit.setPlainText('1\tname\tSGC\t1003\t\t\t5003\t\tc')  # No header, compact HEX.
+        self.assertEqual(self.cells(dialog, 0), ['name', '(per ECU)', '10 03', '', '1', '50 03', 'c'])
+        before = [self.cells(dialog, r) for r in range(dialog.table.rowCount())]
+        dialog.paste_edit.setPlainText('1\t"unterminated\tSGC\n')
+        self.assertEqual([self.cells(dialog, r) for r in range(dialog.table.rowCount())], before)  # Table untouched.
+        self.assertTrue(dialog.lbl_import_status.text().startswith('Row'))
+
+    def test_pasted_text_only_counts_in_import_mode(self):
+        dialog = self.make()
+        dialog.paste_edit.setPlainText(self.exported())  # Default mode: the paste box is not in use.
+        self.assertEqual(dialog.table.rowCount(), 1)
+        dialog.mode_combo.setCurrentIndex(dialog.mode_combo.findText('Import Sequence'))  # Text already there: loaded.
+        self.assertEqual(dialog.table.rowCount(), 3)
+        dialog.mode_combo.setCurrentIndex(dialog.mode_combo.findText('Default'))
+        self.assertTrue(dialog.paste_edit.isHidden())
+        self.assertEqual(dialog.table.rowCount(), 3)  # Going back keeps what was loaded.
+
     def test_cancel_leaves_nothing_behind(self):
         dialog = self.make()
         dialog.btn_cancel.click()

@@ -1,10 +1,12 @@
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QGuiApplication
 from PySide6.QtWidgets import (
-    QAbstractItemView, QDialog, QHBoxLayout, QListWidget, QListWidgetItem, QTableWidgetItem, QVBoxLayout,
+    QAbstractItemView, QDialog, QHBoxLayout, QListWidget, QListWidgetItem, QPlainTextEdit, QTableWidgetItem,
+    QVBoxLayout,
 )
 
 from core.advanced_sequence import AdvancedRow, render_advanced_steps
+from core.sequence_exchange import parse_sequence_text
 from gui.themes.styles.controls.scrollbar_style import fn_apply_scrollbar_style
 from gui.themes.theme_manager import ThemeManager
 from gui.widgets.can_interface.diagnostic_table_panel import HexItemDelegate, validate_and_format_hex
@@ -20,6 +22,9 @@ from gui.widgets.controls.secondary_button import SecondaryButton
 COLUMNS = ("Step", "Test sequence name", "ECU", "Payload (HEX)", "Delay (ms)", "Repeat",
            "Expected Response (HEX)", "Receive Message (HEX)", "Results", "Comment")
 NOTHING = "—"
+
+IMPORT_MODE = "Import Sequence"
+DEFAULT_MODE = "Default"
 
 COLUMN_WIDTHS = (46, 170, 80, 130, 80, 64, 170, 150, 80, 220)
 LIST_WIDTH = 200
@@ -69,6 +74,17 @@ class AdvancedSequenceDialog(QDialog):
         body.addLayout(side)
 
         main = QVBoxLayout()
+        self.paste_edit = QPlainTextEdit()
+        self.paste_edit.setPlaceholderText("Paste a sequence copied with Export SEQ here. Its ECU column is ignored: "
+                                           "the ECUs ticked on the left are used instead.")
+        self.paste_edit.setLineWrapMode(QPlainTextEdit.NoWrap)
+        self.paste_edit.setMaximumHeight(120)
+        self.paste_edit.setVisible(False)
+        self.lbl_import_status = PrimaryLabel("")
+        self.lbl_import_status.setTextFormat(Qt.PlainText)
+        self.lbl_import_status.setVisible(False)
+        main.addWidget(self.paste_edit)
+        main.addWidget(self.lbl_import_status)
         self.table = PrimaryTable()
         self.table.setSortingEnabled(False)
         self.table.setColumnCount(len(COLUMNS))
@@ -84,8 +100,13 @@ class AdvancedSequenceDialog(QDialog):
         self.table.setItemDelegateForColumn(self.COL_EXPECTED, self.hex_delegate)
         main.addWidget(self.table, 1)
         rows = QHBoxLayout()
+        self.mode_combo = PrimaryComboBox(minimum_height=32)
+        self.mode_combo.addItems((IMPORT_MODE, DEFAULT_MODE))
+        self.mode_combo.setCurrentIndex(self.mode_combo.findText(DEFAULT_MODE))
+        self.mode_combo.setMinimumWidth(150)
         self.btn_add_row = SecondaryButton("+ Add row", width=100, height=32)
         self.btn_delete_row = SecondaryButton("Delete row", width=100, height=32)
+        rows.addWidget(self.mode_combo)
         rows.addWidget(self.btn_add_row)
         rows.addWidget(self.btn_delete_row)
         rows.addStretch()
@@ -114,6 +135,8 @@ class AdvancedSequenceDialog(QDialog):
         self.chk_all.clicked.connect(self._select_all_clicked)
         self.name_edit.textChanged.connect(self._refresh_state)
         self.table.itemChanged.connect(self._cell_changed)
+        self.mode_combo.currentIndexChanged.connect(self._mode_changed)
+        self.paste_edit.textChanged.connect(self._paste_changed)
         self.btn_add_row.clicked.connect(self._add_row)
         self.btn_delete_row.clicked.connect(self._delete_rows)
         self.btn_cancel.clicked.connect(self.reject)
@@ -180,12 +203,14 @@ class AdvancedSequenceDialog(QDialog):
         self._refresh_state()
 
     # --- template table ----------------------------------------------------------
-    def _add_row(self, *_):
+    def _add_row(self, *_, values=None):
         row = self.table.rowCount()
         blocked = self.table.blockSignals(True)
         self.table.insertRow(row)
         defaults = {self.COL_ECU: "(per ECU)", self.COL_DELAY: "100", self.COL_REPEAT: "1",
                     self.COL_RECEIVE: NOTHING, self.COL_RESULT: NOTHING}
+        if values is not None:
+            defaults.update(values)
         for column in range(len(COLUMNS)):
             item = QTableWidgetItem(defaults.get(column, ""))
             item.setTextAlignment(Qt.AlignCenter if column in (self.COL_STEP, self.COL_DELAY, self.COL_REPEAT,
@@ -197,6 +222,43 @@ class AdvancedSequenceDialog(QDialog):
         self._renumber()
         self._style_read_only()
         self._refresh_state()
+
+    def _mode_changed(self, *_):
+        importing = self.mode_combo.currentText() == IMPORT_MODE
+        self.paste_edit.setVisible(importing)
+        self.lbl_import_status.setVisible(importing and bool(self.lbl_import_status.text()))
+        if importing:
+            self._paste_changed()
+
+    def _paste_changed(self):
+        """Import Sequence mode: replace the template with the pasted sequence (its ECU column is ignored)."""
+        text = self.paste_edit.toPlainText()
+        if self.mode_combo.currentText() != IMPORT_MODE or not text.strip():
+            self.lbl_import_status.clear()
+            self.lbl_import_status.setVisible(False)
+            return
+        try:
+            imported = parse_sequence_text(text)
+        except ValueError as error:
+            self.lbl_import_status.setText(str(error))  # The table keeps what it had.
+            self.lbl_import_status.setToolTip("")
+        else:
+            self._load_rows(imported.steps)
+            self.lbl_import_status.setText(
+                f"{len(imported.steps)} row(s) loaded from the pasted sequence; its ECU column is ignored.")
+            self.lbl_import_status.setToolTip("\n".join(imported.diagnostics))
+        self.lbl_import_status.setVisible(True)
+
+    def _load_rows(self, steps):
+        blocked = self.table.blockSignals(True)
+        self.table.setRowCount(0)
+        self.table.blockSignals(blocked)
+        for step in steps:
+            self._add_row(values={
+                self.COL_NAME: step.sequence_name, self.COL_REQUEST: step.request,
+                self.COL_DELAY: "" if step.delay_ms is None else str(step.delay_ms),
+                self.COL_REPEAT: str(step.repeat), self.COL_EXPECTED: step.expected_response,
+                self.COL_COMMENT: step.comment})
 
     def _delete_rows(self):
         for row in sorted({index.row() for index in self.table.selectedIndexes()}, reverse=True):
@@ -277,7 +339,11 @@ class AdvancedSequenceDialog(QDialog):
         fn_apply_scrollbar_style(self.table)
         self.table.fn_refresh_theme()
         self._style_read_only()
+        self.paste_edit.setStyleSheet(
+            f"QPlainTextEdit {{ background: {colors.WINDOW}; color: {colors.TEXT}; border: 1px solid {colors.BORDER}; "
+            f"border-radius: 6px; padding: 6px; font-family: Consolas; }}")
+        fn_apply_scrollbar_style(self.paste_edit)
         for widget in (self.lbl_name, self.name_edit, self.lbl_vehicle, self.vehicle_combo, self.lbl_ecus,
-                       self.chk_all, self.lbl_summary, self.btn_add_row, self.btn_delete_row,
-                       self.btn_cancel, self.btn_apply):
+                       self.chk_all, self.lbl_summary, self.lbl_import_status, self.mode_combo, self.btn_add_row,
+                       self.btn_delete_row, self.btn_cancel, self.btn_apply):
             widget.fn_refresh_theme()
