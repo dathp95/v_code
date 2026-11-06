@@ -45,6 +45,11 @@ class ActionButton(PrimaryButton):
                 self.setStyleSheet(fn_secondary_button_style())
             return
 
+        if self.variant == "stop":
+            self.setStyleSheet(self._style(colors.STOP_BUTTON_BG, colors.STOP_BUTTON_HOVER,
+                                           colors.STOP_BUTTON_PRESSED, colors.STOP_BUTTON_TEXT))
+            return
+
         if self.variant == "danger":
             self.setStyleSheet(
                 self._style(

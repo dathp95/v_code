@@ -118,7 +118,7 @@ class CanDiagnosticExecutionTests(unittest.TestCase):
         self.assertEqual(panel.btn_stop.text(), 'STOP')
         self.assertFalse(panel.btn_stop.isEnabled())
         self.tab.recording_controller.refresh()
-        self.assertTrue(self.tab.monitor_panel.btn_blf.isEnabled())
+        self.assertTrue(self.tab.monitor_panel.btn_start.isEnabled())
         self.assertTrue(self.tab.monitor_panel.btn_export.isEnabled())
 
     def test_unsupported_security_and_unconfirmed_write_never_send(self):

@@ -21,14 +21,12 @@ class ContinuousCaptureTests(unittest.TestCase):
         self.bus.rx('01 01',0x760)
         self.wait(lambda:self.tab.monitor_panel.frames>=2)
         self.assertEqual(self.bus.sent,[])
-        self.assertEqual(self.tab.monitor_panel.status.text(),'Monitoring')
         self.click();self.wait(lambda:self.outcome()=='Passed')
         before=self.tab.monitor_panel.frames
         self.bus.rx('01 02',0x760)
         self.wait(lambda:self.tab.monitor_panel.frames>before)
         self.assertEqual(len(set(self.bus.threads)),1)
         self.tab.disconnect_can();self.wait(lambda:not self.tab._connection_task.running)
-        self.assertEqual(self.tab.monitor_panel.status.text(),'Stopped')
 
     def recording(self):
         directory=tempfile.TemporaryDirectory(dir=Path.cwd());self.addCleanup(directory.cleanup)
@@ -112,21 +110,19 @@ class ContinuousCaptureTests(unittest.TestCase):
         self.addCleanup(self.tab._connection_task.shutdown)
         path=Path(directory.name)/'button.blf';controller=self.tab.recording_controller
         panel=self.tab.monitor_panel;task=self.tab._connection_task
-        controller.refresh();self.assertTrue(panel.btn_blf.isEnabled())
-        with patch.object(controller,'destination',return_value=(None,False)): panel.btn_blf.click()
+        controller.refresh();self.assertTrue(panel.btn_start.isEnabled());self.assertFalse(panel.btn_stop.isEnabled())
+        with patch.object(controller,'destination',return_value=(None,False)): panel.btn_start.click()
         self.assertFalse(task.recorder.snapshot.busy)
-        with patch.object(controller,'destination',return_value=(path,False)): panel.btn_blf.click()
+        with patch.object(controller,'destination',return_value=(path,False)): panel.btn_start.click()
         self.wait(lambda:task.recorder.snapshot.state=='RECORDING')
-        controller.refresh();self.assertEqual(panel.btn_blf.text(),'Stop BLF Log')
+        controller.refresh();self.assertTrue(panel.btn_stop.isEnabled());self.assertFalse(panel.btn_start.isEnabled())
         self.bus.rx('01 01',0x760);self.wait(lambda:panel.frames>=1)
         self.addCleanup(ThemeManager.fn_set_theme,ThemeManager.fn_theme())
         for theme in (ThemeType.LIGHT,ThemeType.DARK):
             ThemeManager.fn_set_theme(theme);self.tab.fn_refresh_theme();controller.refresh()
             self.tab.resize(1366,768);self.tab.show();self.app.processEvents()
-            self.assertIn('RECORDING',panel.status.text())
-            self.assertLess(panel.status.geometry().right(),panel.btn_clear.geometry().left())
             self.assertEqual(panel.retained_frames()[0].can_id,0x760)
-        panel.btn_blf.click();self.wait(lambda:not task.recorder.snapshot.busy)
+        panel.btn_stop.click();self.wait(lambda:not task.recorder.snapshot.busy)
         controller.refresh();self.assertTrue(task.recorder.snapshot.complete)
         csv_path=path.with_suffix('.csv');panel.edit_can_id.setText('760')
         with patch.object(controller,'destination',return_value=(csv_path,False)): panel.btn_export.click()

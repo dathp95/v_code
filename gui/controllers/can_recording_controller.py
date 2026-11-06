@@ -19,7 +19,8 @@ class CanRecordingController(QObject):
     def __init__(self,panel,task,service,vehicle_name,parent=None):
         super().__init__(parent)
         self.panel,self.task,self.service,self.vehicle_name=panel,task,service,vehicle_name
-        panel.btn_blf.clicked.connect(self.toggle_recording)
+        panel.btn_start.clicked.connect(self.start_recording)
+        panel.btn_stop.clicked.connect(self.stop_recording)
         panel.btn_export.clicked.connect(self.export_csv)
         self.timer=QTimer(self)
         self.timer.setInterval(100)
@@ -37,7 +38,7 @@ class CanRecordingController(QObject):
         connected=(self.service.snapshot.state==CANConnectionState.CONNECTED
                    and self.task.monitoring and not self.task.running)
         self.panel.set_recording_snapshot(self.task.recorder.snapshot,connected)
-        if self.task.recording_start_pending: self.panel.btn_blf.setEnabled(False)
+        if self.task.recording_start_pending: self.panel.btn_start.setEnabled(False)
 
     def _started(self,error):
         if error: self.panel.show_export_notice(f'BLF not started: {error}')
@@ -57,11 +58,13 @@ class CanRecordingController(QObject):
             return None,False
         return path,overwrite
 
-    def toggle_recording(self):
+    def stop_recording(self):
+        if self.task.recorder.snapshot.state=='RECORDING': self.task.stop_recording()
+        self.refresh()
+
+    def start_recording(self):
         snapshot=self.task.recorder.snapshot
-        if snapshot.state=='RECORDING':
-            self.task.stop_recording();self.refresh();return
-        if snapshot.busy: return
+        if snapshot.state=='RECORDING' or snapshot.busy: return
         try:
             path,overwrite=self.destination('blf')
             if path is not None: self.task.start_recording(path,overwrite=overwrite)
