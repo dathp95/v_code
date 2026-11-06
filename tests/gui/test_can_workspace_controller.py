@@ -282,8 +282,8 @@ class CanWorkspaceControllerTests(unittest.TestCase):
             controller=CanWorkspaceController(sidebar,panel,repo,store)
             for obj in (controller,panel,sidebar): self.addCleanup(obj.deleteLater)
             controller.restore()
-            self.assertEqual(controller.source,second)
-            self.assertEqual(len(panel.fn_current_sequence().steps),16)
+            self.assertEqual(controller.source,first)  # Startup always opens the top of the list.
+            self.assertEqual(len(panel.fn_current_sequence().steps),len(repo.fn_load_sequence(first).steps))
 
     def test_preference_write_failure_is_atomic_and_removes_temporary(self):
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:

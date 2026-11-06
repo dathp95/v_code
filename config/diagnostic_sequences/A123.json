@@ -1,0 +1,11 @@
+{
+    "schema_version": 1,
+    "name": "A123",
+    "description": "",
+    "enabled": true,
+    "execution": {
+        "loop": 1,
+        "command_delay_ms": 100
+    },
+    "steps": []
+}

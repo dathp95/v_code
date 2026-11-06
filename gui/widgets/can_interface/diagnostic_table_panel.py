@@ -1436,6 +1436,14 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
 
             self._undo_baseline.checked = set(self._checked)
 
+    def run_progress(self):
+        """(rows with a final result, rows that will run): the checked rows only."""
+        checked = self.checked_step_ids()
+        done = sum(1 for key in checked
+                   if self._runtime.get(key, ("", "", ""))[1] not in self.TRANSIENT_OUTCOMES
+                   and result_label(self._runtime.get(key, ("", "", ""))[1]) != NO_RESULT)
+        return done, len(checked)
+
     def checked_step_ids(self):
 
         return tuple(key for key in self.step_ids if key in self._checked)

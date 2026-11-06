@@ -44,6 +44,9 @@ class CanWorkspaceController(QObject):
         panel.import_settings_changed.connect(self._save_import_settings)
         panel.apply_import_settings(**store.load().import_settings)
         panel.document_changed.connect(self._sync_actions)
+        for signal in (panel.runtime_changed, panel.selected_rows_changed, panel.document_changed,
+                       panel.sequence_modified, panel.row_selected):
+            signal.connect(self._update_progress)
         sidebar.add_requested.connect(self.add_sequence)
         sidebar.add_advanced_requested.connect(self.add_sequence_advanced)
         sidebar.import_requested.connect(self.import_sequence)
@@ -410,8 +413,9 @@ class CanWorkspaceController(QObject):
                 destination.unlink(missing_ok=True)
                 raise
 
-            # Refresh without changing the current document.
+            # Refresh without changing the current document; the clone sits right below its source.
             self.sidebar.fn_refresh_sequences()
+            self.sidebar.place_after(str(source), str(destination.resolve()))
 
             self.sidebar.mark_opened(
                 self.document_id or "",
@@ -473,7 +477,11 @@ class CanWorkspaceController(QObject):
         self._session_drafts[self.document_id] = case
         self._session_dirty.add(self.document_id)
 
+    def _update_progress(self, *_):
+        self.sidebar.set_progress(*self.panel.run_progress())
+
     def _sync_actions(self):
+        self._update_progress()
         case = self.panel.fn_current_sequence()
         save_enabled = self.panel.fn_is_dirty() or self.source is None or self.source.suffix.lower() == '.diag'
         self.sidebar.set_document_actions(case is not None, save_enabled)
@@ -769,9 +777,11 @@ class CanWorkspaceController(QObject):
         return True
 
     def restore(self):
-        selected = self.store.load().selected_id
-        if selected:
-            self.open_source(selected, persist=False)
+        """Start on the first sequence of the list, scrolled to the top."""
+        ids = self.sidebar.source_ids()
+        if ids:
+            self.open_source(ids[0], persist=False)
+        self.sidebar.scroll_to_top()
 
     def save_sequence(self, path=None, *, overwrite=False):
         case = self.panel.fn_current_sequence()

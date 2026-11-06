@@ -2,8 +2,11 @@
     "version": 1,
     "order": [
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0001.READ&CDS.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0001.READ&CDS_copy.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\01 a1.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0003.DVT&V1.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0002.READ VIN.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0003.DVT&V1_copy.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\10.Extend_Session.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0004. RESET ALL.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\200.BCM&S.json",
@@ -69,6 +72,7 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\928.SGC&Immo.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\929.SGC&ResetODO.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\951.WriteVIN_VDKdiag.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\1122.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9103.ESC&BasicDID.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9104.ESC&CDS&1.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9104.ESC&CDS&INDIA.json",
@@ -128,11 +132,19 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9732.VDKCU&sofwarePUBLICKey.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9733.VDKCU&WriteOEMRootCert.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9734.VDKCU&SerDiagKeyProvision.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\a1.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\Ok1.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\ok2.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\TEST 01.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\test 1.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\test 2.json",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\test 3.json"
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\test 3.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\VF34 READ CODING.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\VF3_READ CODING.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\VF3_READ VIN.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\VIP3.json"
     ],
-    "selected_id": "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\01 a1.json",
+    "selected_id": "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\Extension VF34.json",
     "vehicles": {
         "C:\\REDO\\CODINGTOOL\\config\\diagnostic_sequences\\0002_READ_VIN copy.json": "LIMO",
         "C:\\VF5NP\\SW\\Version 3.2 CBT\\Version 3.2 CBT\\SeqList\\0001.READ&CDS.diag": "VF5NP",
@@ -184,11 +196,12 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0003.DVT&V1.json": "VF3",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0004. RESET ALL.json": "VF3",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\9202.SGC&WriteVIN&1.json": "VF5NP",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\VIP3.json": "VF5NP",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\VIP3.json": "VF34 OLD",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\TEST 01.json": "VF3",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\VF3_READ VIN.json": "VF3",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\VF3_READ CODING.json": "VF5NP",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\VF34 READ CODING.json": "VF34 OLD"
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\VF34 READ CODING.json": "VF34 OLD",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\Extension VF34.json": "VF34 OLD"
     },
     "sources": [
         "C:\\REDO\\CODINGTOOL\\config\\diagnostic_sequences\\0002_READ_VIN.json",
@@ -357,7 +370,12 @@
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\Ok1.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\ok2.json",
         "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\a1.json",
-        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\01 a1.json"
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\01 a1.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\0001.READ&CDS_copy.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\z1.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\A123.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\211.BCM&DVT.json",
+        "C:\\REDO\\CODINGTOOL_V2\\config\\diagnostic_sequences\\Extension VF34.json"
     ],
     "import_settings": {
         "loop": 1,

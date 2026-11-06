@@ -2,7 +2,7 @@ from pathlib import Path
 from html import escape
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtWidgets import QAbstractItemView, QListWidget, QListWidgetItem, QStyle, QStyleOptionViewItem, QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy
+from PySide6.QtWidgets import QAbstractItemView, QListWidget, QListWidgetItem, QProgressBar, QStyle, QStyleOptionViewItem, QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy
 
 from gui.widgets.diagnostic.diagnostic_sequence_list import DiagnosticSequenceList
 from gui.widgets.controls.primary_label import PrimaryLabel
@@ -78,6 +78,14 @@ class CanSequenceSidebar(DiagnosticSequenceList):
         old.hide()
         old.deleteLater()
         self.layout().setStretchFactor(self.list_sequences, 1)
+        # Run progress of the open sequence (checked rows with a result / checked rows), under the list.
+        self.progress = QProgressBar()
+        self.progress.setTextVisible(True)
+        self.progress.setAlignment(Qt.AlignCenter)
+        self.progress.setFixedHeight(20)
+        self.progress.setToolTip("Checked rows with a result / checked rows of the open sequence.")
+        self.layout().insertWidget(self.layout().indexOf(self.list_sequences) + 1, self.progress)
+        self.set_progress(0, 0)
         self.lbl_selected = PrimaryLabel("0 selected")
         self.btn_save_order = PrimaryButton("Save Order", height=30, width=90)
         self.layout().addWidget(self.lbl_selected)
@@ -145,6 +153,51 @@ class CanSequenceSidebar(DiagnosticSequenceList):
         self._feedback_timer = QTimer(self)
         self._feedback_timer.setSingleShot(True)
         self._feedback_timer.timeout.connect(self.feedback.clear)
+
+    def set_progress(self, done, total):
+        total = max(int(total), 0)
+        done = min(max(int(done), 0), total)
+        self.progress.setRange(0, max(total, 1))
+        self.progress.setValue(done)
+        percent = f" ({done * 100 // total}%)" if done and total else ""
+        self.progress.setFormat(f"{done} / {total}{percent}")
+
+    def scroll_to_top(self):
+        self.list_sequences.verticalScrollBar().setValue(0)
+
+    @classmethod
+    def _insert_by_key(cls, order, extras):
+        """Add ids to an existing order at their natural place: numbers ascending first, then alphabet."""
+        order = list(order)
+        for extra in sorted(extras, key=cls._sequence_sort_key):
+            key = cls._sequence_sort_key(extra)
+            position = next((i for i, other in enumerate(order) if cls._sequence_sort_key(other) > key), len(order))
+            order.insert(position, extra)
+        return tuple(order)
+
+    def place_after(self, anchor, new_id):
+        """Put a new sequence right below another one and save that position (other pending moves stay pending)."""
+        ids = self.source_ids()
+        if anchor not in ids or new_id not in ids or anchor == new_id:
+            return False
+
+        def moved(order):
+            order = [x for x in order if x != new_id]
+            order.insert(order.index(anchor) + 1 if anchor in order else len(order), new_id)
+            return tuple(order)
+
+        self._apply_order(moved(ids))
+        saved = moved(self._saved_order)
+        try:
+            self.store.save_order(saved)
+        except OSError as error:
+            self.feedback.setText(f"Cannot save order: {error}")
+            saved = tuple(x for x in self._saved_order if x != new_id) + (new_id,)
+        self._saved_order = saved
+        self.mark_opened(self._active_source, persist=False)
+        self._order_changed()
+        self._refresh_sequence_labels()
+        return True
 
     def source_ids(self):
         return tuple(self.list_sequences.item(i).data(self.ITEM_PATH_ROLE) for i in range(self.list_sequences.count()))
@@ -217,8 +270,10 @@ class CanSequenceSidebar(DiagnosticSequenceList):
         ids = self.source_ids()
         saved = self.store.load().order
         persistent = self.persistent_ids()
-        self._saved_order = tuple(x for x in saved if x in persistent) + tuple(x for x in persistent if x not in saved)
-        order = tuple(x for x in pending if x in ids) + tuple(x for x in ids if x not in pending) if pending else (*self._saved_order,*self._drafts)
+        known = tuple(x for x in saved if x in persistent)
+        self._saved_order = self._insert_by_key(known, [x for x in persistent if x not in saved])
+        order = (self._insert_by_key([x for x in pending if x in ids], [x for x in ids if x not in pending])
+                 if pending else (*self._saved_order, *self._drafts))
         self._apply_order(order)
         self._filter(self.edit_search.text())
         self._order_changed()
@@ -616,3 +671,7 @@ class CanSequenceSidebar(DiagnosticSequenceList):
             f"QListWidget::item:selected {{ background: {colors.SEQUENCE_SELECTED_BG}; color: {colors.SEQUENCE_SELECTED_TEXT}; }}")
         fn_apply_scrollbar_style(self.list_sequences)
         self.list_sequences.verticalScrollBar().setValue(scroll)
+        self.progress.setStyleSheet(
+            f"QProgressBar {{ background: {colors.PROGRESS_TRACK}; color: {colors.PROGRESS_TEXT}; border: 1px solid {colors.BORDER};"
+            f" border-radius: 4px; text-align: center; }}"
+            f"QProgressBar::chunk {{ background: {colors.PROGRESS_CHUNK}; border-radius: 3px; }}")
