@@ -924,7 +924,10 @@ class LogAnalyzerTabTests(unittest.TestCase):
         self.tab.tbl_result.setCurrentCell(0, 0)
         pipeline_result = self.tab.analysis_controller.pipeline_result
 
-        with patch.object(self.tab.analysis_controller, "fn_run") as run_analysis, patch.object(
+        with patch("gui.tabs.log_analyzer_tab.refresh_display_names"), patch(
+            "gui.tabs.log_analyzer_tab.fn_build_transaction_rows",
+            return_value=rows,
+        ), patch.object(self.tab.analysis_controller, "fn_run") as run_analysis, patch.object(
             self.tab,
             "_fn_start_analysis_thread",
         ) as start_analysis, patch.object(

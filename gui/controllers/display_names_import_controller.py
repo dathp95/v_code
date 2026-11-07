@@ -7,11 +7,14 @@ from core.uds_lookup import reload_display_names
 from gui.dialogs.import_display_names_dialog import ImportDisplayNamesDialog
 
 SUCCESS_NOTICE_MS = 1500
+SUCCESS_NOTICE_WITH_HINT_MS = 3000  # Long enough to read the extra line.
 
 
 class DisplayNamesImportController:
-    def __init__(self, parent):
+    def __init__(self, parent, hint=None):
         self.parent = parent
+        # Optional callable returning an extra line for the success notice (e.g. "press Refresh ...").
+        self._hint = hint
 
     def import_file(self):
         """Import File Display Names: choose a *.json file."""
@@ -48,7 +51,8 @@ class DisplayNamesImportController:
         message_box = QMessageBox(self.parent)
         message_box.setIcon(QMessageBox.Information)
         message_box.setWindowTitle(title)
-        message_box.setText(message)
+        hint = self._hint() if self._hint is not None else ""
+        message_box.setText(f"{message}\n{hint}" if hint else message)
         message_box.setStandardButtons(QMessageBox.NoButton)
-        QTimer.singleShot(SUCCESS_NOTICE_MS, message_box.accept)
+        QTimer.singleShot(SUCCESS_NOTICE_WITH_HINT_MS if hint else SUCCESS_NOTICE_MS, message_box.accept)
         message_box.exec()

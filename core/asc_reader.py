@@ -24,12 +24,17 @@ from core.uds_lookup import (
 def parse_asc_line(line):
 
     # Split by whitespace
-    parts = line.split()   
+    parts = line.split()
 
-        # Not enough columns means this is not a valid CAN frame.
+    # Not enough columns means this is not a valid CAN frame.
     if len(parts) < 13:
         return None
 
+    return _message_from_parts(parts)
+
+
+def _message_from_parts(parts):
+    """The message of an already split ASC line, or None when a field is not valid."""
     try:
 
         timestamp = float(parts[0])
@@ -77,12 +82,23 @@ def load_asc(file_name, channel=None):
 
         for line in f:
 
-            msg = parse_asc_line(line)
+            parts = line.split()
 
-            if msg is None:
+            if len(parts) < 13:
                 continue
 
-            if channel is not None and msg["channel"] != channel:
+            # Check the channel first: building the message (hex bytes) is the expensive part, and a log
+            # of several channels has mostly lines of other channels to skip.
+            if channel is not None:
+                try:
+                    if int(parts[1]) != channel:
+                        continue
+                except ValueError:
+                    continue
+
+            msg = _message_from_parts(parts)
+
+            if msg is None:
                 continue
 
             selected_channel_found = True

@@ -1,8 +1,5 @@
 import os
-import sys
-import types
 import unittest
-from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -32,11 +29,11 @@ class LogAnalyzerDetailPanelTests(unittest.TestCase):
 
         self.assertEqual(
             panel.txt_quick_filter_info.toPlainText(),
-            "Name: -\nECU: -\nRequest: -\nResponse: -",
+            "Name: -\n\nECU: -\n\nRequest: -\n\nResponse: -",
         )
         self.assertEqual(
             panel.txt_transaction_info.toPlainText(),
-            "ECU: -\nTime: -\nActivity: -\nRequest: -\nResponse: -\nRT (ms): -\nStatus: -",
+            "ECU: -\n\nTime: -\n\nActivity: -\n\nRequest: -\n\nResponse: -\n\nRT (ms): -\n\nStatus: -",
         )
 
     def test_action_panel_keeps_quick_filter_and_transaction_details_separate(self):
@@ -69,19 +66,19 @@ class LogAnalyzerDetailPanelTests(unittest.TestCase):
 
         self.assertEqual(
             panel.txt_quick_filter_info.toPlainText(),
-            "Name: Filter 22 F1 90\n"
-            "ECU: MHU\n"
-            "Request: 22 F1 90\n"
+            "Name: Filter 22 F1 90\n\n"
+            "ECU: MHU\n\n"
+            "Request: 22 F1 90\n\n"
             "Response: 62 F1 90",
         )
         self.assertEqual(
             panel.txt_transaction_info.toPlainText(),
-            "ECU: VCU\n"
-            "Time: 125.320\n"
-            "Activity: Read VIN\n"
-            "Request: 22 F1 90\n"
-            "Response: 7F 22 31\n"
-            "RT (ms): 18.50\n"
+            "ECU: VCU\n\n"
+            "Time: 125.320\n\n"
+            "Activity: Read VIN\n\n"
+            "Request: 22 F1 90\n\n"
+            "Response: 7F 22 31\n\n"
+            "RT (ms): 18.50\n\n"
             "Status: Negative",
         )
 
@@ -102,11 +99,11 @@ class LogAnalyzerDetailPanelTests(unittest.TestCase):
         panel.fn_clear_detail_panels()
         self.assertEqual(
             panel.txt_quick_filter_info.toPlainText(),
-            "Name: -\nECU: -\nRequest: -\nResponse: -",
+            "Name: -\n\nECU: -\n\nRequest: -\n\nResponse: -",
         )
         self.assertEqual(
             panel.txt_transaction_info.toPlainText(),
-            "ECU: -\nTime: -\nActivity: -\nRequest: -\nResponse: -\nRT (ms): -\nStatus: -",
+            "ECU: -\n\nTime: -\n\nActivity: -\n\nRequest: -\n\nResponse: -\n\nRT (ms): -\n\nStatus: -",
         )
 
 
@@ -186,19 +183,11 @@ class LogAnalyzerDetailPanelTests(unittest.TestCase):
         self.assertEqual(action_layout.stretch(transaction_index), 3)
 
     def test_log_analyzer_updates_details_independently_and_clears_stale_data(self):
-        with patch.dict(
-            sys.modules,
-            {
-                "can": types.SimpleNamespace(),
-                "pandas": types.SimpleNamespace(),
-            },
-        ):
-            from gui.tabs.log_analyzer_tab import LogAnalyzerTab
+        from gui.tabs.log_analyzer_tab import LogAnalyzerTab
 
-            tab = LogAnalyzerTab()
+        tab = LogAnalyzerTab()
 
         self.addCleanup(tab.deleteLater)
-        self.addCleanup(self._clear_imported_gui_modules)
 
         tab.fn_quick_filter(
             {
@@ -236,26 +225,12 @@ class LogAnalyzerDetailPanelTests(unittest.TestCase):
 
         self.assertEqual(
             tab.right_panel.action_panel.txt_quick_filter_info.toPlainText(),
-            "Name: -\nECU: -\nRequest: -\nResponse: -",
+            "Name: -\n\nECU: -\n\nRequest: -\n\nResponse: -",
         )
         self.assertEqual(
             tab.right_panel.action_panel.txt_transaction_info.toPlainText(),
-            "ECU: -\nTime: -\nActivity: -\nRequest: -\nResponse: -\nRT (ms): -\nStatus: -",
+            "ECU: -\n\nTime: -\n\nActivity: -\n\nRequest: -\n\nResponse: -\n\nRT (ms): -\n\nStatus: -",
         )
-
-    @staticmethod
-    def _clear_imported_gui_modules():
-        modules_to_clear = {
-            "core.convert_blf",
-            "core.export_transactions",
-            "core.pipeline",
-            "core.report_export",
-            "gui.controllers.analysis_controller",
-            "gui.controllers.report_controller",
-            "gui.tabs.log_analyzer_tab",
-        }
-        for module_name in modules_to_clear:
-            sys.modules.pop(module_name, None)
 
 
 if __name__ == "__main__":

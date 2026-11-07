@@ -25,6 +25,7 @@ from gui.widgets.vehicle_manager.vehicle_selector import VehicleSelectorWidget
 from gui.workers.analysis_worker import AnalysisWorker
 from gui.workers.log_channel_worker import LogChannelWorker
 from core.diagnostic_channel import detect_diagnostic_channel
+from core.pipeline import refresh_display_names
 from services.vehicle_service import VehicleService
 from repositories.load_config_start_store import LoadConfigStartStore
 from gui.controllers.display_names_import_controller import DisplayNamesImportController
@@ -259,7 +260,7 @@ class LogAnalyzerTab(QWidget):
         self.export_controller = ReportController()
         self.clipboard_controller = ClipboardController()
         self.vehicle_service = VehicleService()
-        self.display_names_import = DisplayNamesImportController(self)
+        self.display_names_import = DisplayNamesImportController(self, hint=self._display_names_hint)
 
     def _connect_signals(self):
         self.vehicle_selector.vehicle_changed.connect(
@@ -780,7 +781,23 @@ class LogAnalyzerTab(QWidget):
     def fn_filter_transactions(self, keyword=None):
         self.tbl_result.fn_search(keyword)
 
+    def _display_names_hint(self) -> str:
+        if self.analysis_controller.pipeline_result is None:
+            return ""
+        return "Press Refresh to show the new names in the current table."
+
+    def _fn_apply_new_display_names(self) -> None:
+        """Relabel the analysed transactions with the current display names (no new analysis)."""
+        result = self.analysis_controller.pipeline_result
+        if not result or "transactions" not in result:
+            return
+        refresh_display_names(result)
+        self.tbl_result.set_data(
+            fn_build_transaction_rows(result["transactions"])
+        )
+
     def fn_refresh_table(self):
+        self._fn_apply_new_display_names()
         self.filter_box.clear()
         self.tbl_result.fn_reset_view()
         self.right_panel.action_panel.fn_clear_quick_filter_info()

@@ -18,6 +18,7 @@ from core.ecu_mapping import (
 )
 
 from core.uds_lookup import (
+    get_display_name,
     get_positive_response_timeout,
 )
 
@@ -25,6 +26,25 @@ from core.report_engine import (
     build_ecu_reports,
     build_summary_report,
 )
+
+
+def refresh_display_names(result):
+    """Re-apply the current display-name mapping to an analysed result, without parsing the log again.
+
+    Names never change what was analysed (requests, responses, status, timing), so the transactions are
+    only relabelled and the per-ECU reports and the summary are rebuilt from them for the export.
+    """
+    transactions = result["transactions"]
+
+    for transaction in transactions:
+        transaction["display_name"] = get_display_name(
+            (transaction.get("request") or {}).get("payload")
+        )
+
+    result["ecu_reports"] = build_ecu_reports(transactions)
+    result["summary"] = build_summary_report(result["ecu_reports"])
+
+    return result
 
 
 def run_pipeline(

@@ -23,6 +23,8 @@ from gui.themes.theme_manager import ThemeManager
 from gui.themes.styles.controls.menu_style import fn_apply_menu_style
 
 from gui.widgets.controls.secondary_button import SecondaryButton
+from gui.widgets.controls.primary_button import PrimaryButton
+
 from gui.themes.styles.controls.scrollbar_style import (
     fn_apply_scrollbar_style,
 )
@@ -117,7 +119,7 @@ class QuickAccessWidget(QWidget):
         # Filter Actions
         # --------------------------
 
-        self.btn_add = SecondaryButton(
+        self.btn_add = PrimaryButton(
             "+ Add Filter +"
         )
 
@@ -129,7 +131,7 @@ class QuickAccessWidget(QWidget):
             "Export Filters"
         )
 
-        self.btn_save_order = SecondaryButton("Save Order")
+        self.btn_save_order = PrimaryButton("Save Order")
         self.btn_save_order.setEnabled(False)
         self.lbl_order_status = QLabel()
         self.lbl_order_status.hide()

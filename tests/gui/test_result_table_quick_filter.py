@@ -71,21 +71,15 @@ class ResultTableQuickFilterTests(unittest.TestCase):
         table.fn_apply_quick_filter({"filters": {"request": "31 01 02 06"}})
         self.assertFalse(table.isRowHidden(0))
 
-    def test_status_column_stretches_to_fill_remaining_width(self):
+    def test_activity_and_response_stretch_while_status_keeps_its_width(self):
         table = ResultTable()
         self.addCleanup(table.deleteLater)
 
-        status_column = table._fn_column_index("Status")
-        request_column = table._fn_column_index("Request")
-
-        self.assertEqual(
-            table.horizontalHeader().sectionResizeMode(status_column),
-            QHeaderView.Stretch,
-        )
-        self.assertEqual(
-            table.horizontalHeader().sectionResizeMode(request_column),
-            QHeaderView.Interactive,
-        )
+        header = table.horizontalHeader()
+        for name in ("Activity", "Response"):
+            self.assertEqual(header.sectionResizeMode(table._fn_column_index(name)), QHeaderView.Stretch, name)
+        for name in ("ECU", "Time", "Request", "RT (ms)", "Status"):
+            self.assertEqual(header.sectionResizeMode(table._fn_column_index(name)), QHeaderView.Interactive, name)
 
     def test_header_sorting_is_disabled_without_changing_resize_mode(self):
         table = ResultTable()

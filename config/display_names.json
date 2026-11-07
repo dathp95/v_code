@@ -1894,5 +1894,8 @@
     },
     "31 03 FF 02": {
         "display_name": "performRollback"
+    },
+    "3E 00": {
+        "display_name": "TESTER"
     }
 }

@@ -23,6 +23,8 @@ output/
 *.log
 config/coding_value_workspaces.json
 config/coding_value_workspace_snapshots/
+# Start-up preferences of this machine (last CAN channel, last Log Analyzer vehicle, ...)
+config/load_config_start.json
 activation.dat
 activation.dat.tmp
 activation-*.json

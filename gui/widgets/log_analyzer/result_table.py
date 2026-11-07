@@ -23,6 +23,16 @@ class ResultTable(PrimaryTable):
 
     TRANSACTION_FIELDS = list(TRANSACTION_COLUMNS)
 
+    FIXED_COLUMN_WIDTHS = {
+        "ECU": 64,
+        "Time": 80,
+        "Request": 110,
+        "RT (ms)": 64,
+        "Status": 84,
+    }
+    STRETCH_FIELDS = ("Activity", "Response")
+    MIN_SECTION_WIDTH = 60
+
     def __init__(self):
         super().__init__()
 
@@ -51,10 +61,15 @@ class ResultTable(PrimaryTable):
 
         header.setStretchLastSection(False)
 
-        header.setSectionResizeMode(
-            self._fn_column_index("Status"),
-            QHeaderView.Stretch,
-        )
+        # Short columns keep a fixed width (still resizable by hand); the two long text columns share what
+        # is left, so ECU ... Status all fit a ~700 px table (1366 px screen) without a horizontal scroll bar.
+        header.setMinimumSectionSize(self.MIN_SECTION_WIDTH)
+
+        for field in self.STRETCH_FIELDS:
+            header.setSectionResizeMode(
+                self._fn_column_index(field),
+                QHeaderView.Stretch,
+            )
 
         self.setContextMenuPolicy(
             Qt.CustomContextMenu
@@ -99,43 +114,15 @@ class ResultTable(PrimaryTable):
     
     def _fn_setup_column_width(self):
         """
-        Set default column widths.
+        Set the widths of the fixed columns; Activity and Response stretch (see _setup_ui).
         """
 
-        self.setColumnWidth(
-            self._fn_column_index("ECU"),
-            120
-        )
+        for field, width in self.FIXED_COLUMN_WIDTHS.items():
+            self.setColumnWidth(
+                self._fn_column_index(field),
+                width
+            )
 
-        self.setColumnWidth(
-            self._fn_column_index("Time"),
-            80
-        )
-
-       
-        self.setColumnWidth(
-            self._fn_column_index("Activity"),
-            250
-        )
-
-        self.setColumnWidth(
-            self._fn_column_index("Request"),
-            180
-        )
-
-        self.setColumnWidth(
-            self._fn_column_index("Response"),
-            280
-        )
-
-        self.setColumnWidth(
-            self._fn_column_index("RT (ms)"),
-            80
-        )
-
-        
-
-    
     def fn_search(
             self,
             keyword: str = "",

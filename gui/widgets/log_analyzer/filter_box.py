@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout
 )
 
-from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 
 from gui.widgets.controls.primary_button import PrimaryButton
 from gui.widgets.controls.primary_lineedit import PrimaryLineEdit
@@ -15,6 +15,9 @@ from gui.utils.payload_format import format_payload_input_with_cursor
 
 
 class FilterBox(QWidget):
+
+    # Filtering a large result table takes seconds, so typing is applied once the user pauses.
+    DEBOUNCE_MS = 250
 
     filter_changed = Signal(str)
     refresh_clicked = Signal()
@@ -33,6 +36,13 @@ class FilterBox(QWidget):
         )
         self.btn_refresh.setFixedWidth(FORM_ACTION_BUTTON_WIDTH)
         self.btn_refresh.setEnabled(False)
+
+        # Typing is debounced; clear()/set_text()/setText() and Enter apply at once.
+        self._typing = False
+        self._debounce_timer = QTimer(self)
+        self._debounce_timer.setSingleShot(True)
+        self._debounce_timer.setInterval(self.DEBOUNCE_MS)
+        self._debounce_timer.timeout.connect(self._emit_pending_filter)
 
         self._setup_ui()
         self._connect_signals()
@@ -61,11 +71,38 @@ class FilterBox(QWidget):
         main_layout.addLayout(filter_box_layout)
 
     def _connect_signals(self):
+        self.edit_filter.textEdited.connect(self._on_user_edit)
         self.edit_filter.textEdited.connect(self._format_payload)
-        self.edit_filter.textChanged.connect(self.filter_changed.emit)
+        self.edit_filter.textChanged.connect(self._on_text_changed)
+        self.edit_filter.returnPressed.connect(self.fn_flush_filter)
         self.btn_refresh.clicked.connect(
             self.refresh_clicked.emit
         )
+
+    def _on_user_edit(self, _value):
+        """Qt emits textEdited right before textChanged for the user's own typing, never for setText()."""
+        self._typing = True
+        QTimer.singleShot(0, self._end_typing)  # The matching textChanged arrives before this runs.
+
+    def _end_typing(self):
+        self._typing = False
+
+    def _on_text_changed(self, text):
+        typing, self._typing = self._typing, False
+        if typing:
+            self._debounce_timer.start()  # Restart the wait on every keystroke.
+            return
+        self._debounce_timer.stop()  # A programmatic change replaces whatever typing was pending.
+        self.filter_changed.emit(text)
+
+    def _emit_pending_filter(self):
+        self.filter_changed.emit(self.edit_filter.text())
+
+    def fn_flush_filter(self):
+        """Apply a pending typed filter right now (Enter)."""
+        if self._debounce_timer.isActive():
+            self._debounce_timer.stop()
+            self._emit_pending_filter()
 
     def _format_payload(self, value):
         formatted, cursor = format_payload_input_with_cursor(
@@ -94,7 +131,7 @@ class FilterBox(QWidget):
                 self.edit_filter.setText(formatted)
                 self.edit_filter.setCursorPosition(cursor)
                 self.edit_filter.blockSignals(False)
-                self.filter_changed.emit(formatted)
+                self._debounce_timer.start()
                 return True
 
         return False
