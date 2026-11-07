@@ -1,4 +1,5 @@
-﻿from PySide6.QtCore import Qt, QThread
+﻿import logging
+from PySide6.QtCore import Qt, QThread
 
 from PySide6.QtWidgets import (
     QWidget,
@@ -24,12 +25,21 @@ from gui.widgets.vehicle_manager.vehicle_selector import VehicleSelectorWidget
 from gui.workers.analysis_worker import AnalysisWorker
 from gui.workers.log_channel_worker import LogChannelWorker
 from services.vehicle_service import VehicleService
+from repositories.load_config_start_store import LoadConfigStartStore
+
+
+LOG = logging.getLogger(__name__)
+
+START_CONFIG_TAB = "log_analyzer"
 
 
 class LogAnalyzerTab(QWidget):
 
-    def __init__(self):
+    def __init__(self, start_store=None):
         super().__init__()
+
+        # Values restored at start-up (config/load_config_start.json): the last chosen vehicle.
+        self._start_store = start_store if start_store is not None else LoadConfigStartStore()
 
         # Runtime data
         self._current_vehicle = None
@@ -302,7 +312,16 @@ class LogAnalyzerTab(QWidget):
         )
 
     def _load_vehicles(self):
-        self.fn_refresh_vehicles()
+        # Select the vehicle used in the last session; no selection if it no longer exists.
+        saved = self._start_store.get_tab(START_CONFIG_TAB).get("vehicle")
+        self.fn_refresh_vehicles(saved if isinstance(saved, str) else "")
+
+    def _remember_vehicle(self, vehicle_name: str) -> None:
+        try:
+            if self._start_store.get_tab(START_CONFIG_TAB).get("vehicle") != vehicle_name:
+                self._start_store.set_tab_values(START_CONFIG_TAB, vehicle=vehicle_name)
+        except (OSError, TypeError, ValueError):
+            LOG.exception("Cannot save the Log Analyzer start-up configuration")
 
     def fn_refresh_vehicles(
         self,
@@ -355,6 +374,8 @@ class LogAnalyzerTab(QWidget):
         self._current_vehicle = self.vehicle_service.load_vehicle(
             vehicle_name
         )
+
+        self._remember_vehicle(vehicle_name)
 
         self._update_analyze_state()
 
