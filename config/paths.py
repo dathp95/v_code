@@ -14,6 +14,7 @@ Q_CURRENT_REPORT_DIR = OUTPUT_DIR / "Report_QCurrent"
 CAN_INTERFACE_LOG_DIR = OUTPUT_DIR / "CAN_Interface_Logs"
 
 CONFIG_DIR = PROJECT_ROOT / "config"
+LOAD_CONFIG_START_FILE = CONFIG_DIR / "load_config_start.json"
 Q_CURRENT_DATABASE_DIR = CONFIG_DIR / "database_qcurrent"
 Q_CURRENT_CONFIG_FILE = CONFIG_DIR / "q_current_config.json"
 CODING_VALUE_WORKSPACES_FILE = CONFIG_DIR / "coding_value_workspaces.json"

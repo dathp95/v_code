@@ -1,3 +1,5 @@
+import logging
+
 from PySide6.QtCore import QObject, QSignalBlocker
 
 from PySide6.QtWidgets import QApplication, QMessageBox
@@ -14,11 +16,26 @@ from services.can import CANConnectionState as State
 
 from core.bench_authorization import BenchAuthorizationContext
 
+from repositories.load_config_start_store import LoadConfigStartStore
+
+LOG = logging.getLogger(__name__)
+
+START_CONFIG_TAB = "can_interface"
+
+
+def _as_tuple(value):
+
+    """JSON turns the device identity tuple into nested lists; turn it back."""
+
+    return tuple(_as_tuple(item) for item in value) if isinstance(value, list) else value
+
 class CanConnectionController(QObject):
 
-    def __init__(self, service, view, parent=None):
+    def __init__(self, service, view, parent=None, start_store=None):
 
         super().__init__(parent)
+
+        self._start_store = start_store if start_store is not None else LoadConfigStartStore()
 
         self._service = service
 
@@ -36,9 +53,15 @@ class CanConnectionController(QObject):
 
         self._closing = False
 
-        self._previous_device = None
+        # Adapter and channel of the last successful connection (load_config_start.json): the first discovery of
 
-        self._previous_channel = None
+        # a new run selects them again, falling back to the first entry when they are not present.
+
+        saved = self._start_store.get_tab(START_CONFIG_TAB)
+
+        self._previous_device = _as_tuple(saved["device"]) if isinstance(saved.get("device"), list) else None
+
+        self._previous_channel = saved["channel"] if type(saved.get("channel")) is int else None
 
         self._auto_discovered = False
 
@@ -101,9 +124,13 @@ class CanConnectionController(QObject):
 
         channel = self.cmb_channel.currentData()
 
-        self._previous_device = device.identity if isinstance(device, CANDeviceInfo) else None
+        if isinstance(device, CANDeviceInfo):
 
-        self._previous_channel = channel.identity if isinstance(channel, CANChannelInfo) else None
+            self._previous_device = device.identity
+
+        if isinstance(channel, CANChannelInfo):
+
+            self._previous_channel = channel.identity
 
         self._refreshing = True
 
@@ -304,6 +331,31 @@ class CanConnectionController(QObject):
                         f'authorization: {"active" if authorized else "unavailable"}; only 10 01, 10 03, 14 FF FF FF')
 
         self._set_status(snapshot.state.value, details)
+
+        if operation == Operation.CONNECT and snapshot.state == State.CONNECTED:
+
+            self._remember_channel()
+
+    def _remember_channel(self):
+
+        """Keep the adapter and channel of a successful connection for the next start of the app."""
+
+        device = self.cmb_device.currentData()
+
+        channel = self.cmb_channel.currentData()
+
+        if not (isinstance(device, CANDeviceInfo) and isinstance(channel, CANChannelInfo)):
+
+            return
+
+        try:
+
+            self._start_store.set_tab_values(START_CONFIG_TAB, device=device.identity,
+                                             channel=channel.identity, channel_name=channel.name)
+
+        except (OSError, TypeError, ValueError):
+
+            LOG.exception("Cannot save the CAN start-up configuration")
 
     def _connection_failed(self, operation, error):
 

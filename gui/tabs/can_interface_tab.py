@@ -19,7 +19,8 @@ from gui.themes.theme_manager import ThemeManager
 class CANInterfaceTab(QWidget):
     """Compose the workspace; connection lifecycle belongs to its controller."""
 
-    def __init__(self, service=None, *, vehicle_service=None, sequence_repository=None, ui_store=None):
+    def __init__(self, service=None, *, vehicle_service=None, sequence_repository=None, ui_store=None,
+                 start_store=None):
         super().__init__()
         if vehicle_service is None:
             try:
@@ -59,7 +60,8 @@ class CANInterfaceTab(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.addWidget(self.main_splitter)
-        self.connection_controller = CanConnectionController(self._service, self.session_panel.connection, self)
+        self.connection_controller = CanConnectionController(self._service, self.session_panel.connection, self,
+                                                             start_store=start_store)
         # Preserve existing CAN tab action/control access for callers and M02 tests.
         for name in self.session_panel.connection.CONTROLS:
             setattr(self, name, getattr(self.session_panel.connection, name))
