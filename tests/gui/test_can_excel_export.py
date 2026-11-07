@@ -136,6 +136,32 @@ class ExcelExportTests(unittest.TestCase):
         name, rows = sheet_for_case(blank)
         self.assertEqual((name, rows[0]['sequence_name']), ('My Sequence', ''))
 
+    def test_unreadable_ticked_sequence_is_skipped_and_reported_while_the_others_export(self):
+        env = self.make(['9601.a', '9602.b', '9603.c'])
+        env.controller.restore()
+        self.tick(env, '9601.a', '9602.b', '9603.c')
+        Path(env.resolve('9602.b')).write_text('{ not valid json', encoding='utf-8')
+        with patch('PySide6.QtWidgets.QMessageBox.warning') as warning:
+            suggested, toast = self.export(env, env.root / 'logs')
+        self.assertEqual(load_workbook(suggested).sheetnames, ['9601.a', '9603.c'])
+        toast.assert_called_once()  # The export still completed.
+        warning.assert_called_once()
+        message = warning.call_args.args[2]
+        self.assertIn('9602.b', message)
+        self.assertNotIn('9601.a', message)
+
+    def test_when_every_ticked_sequence_is_unreadable_nothing_is_saved_and_the_user_is_told(self):
+        env = self.make(['9601.a', '9602.b'])
+        env.controller.restore()
+        self.tick(env, '9602.b')
+        Path(env.resolve('9602.b')).write_text('{ not valid json', encoding='utf-8')
+        with patch('PySide6.QtWidgets.QMessageBox.warning') as warning:
+            suggested, toast = self.export(env, env.root / 'logs')
+        self.assertIsNone(suggested)  # No Save dialog for an empty workbook.
+        toast.assert_not_called()
+        warning.assert_called_once()
+        self.assertIn('9602.b', warning.call_args.args[2])
+
     def test_nothing_ticked_exports_the_open_sequence_only(self):
         env = self.make(['9601.a', '9602.b'])
         env.controller.restore()
@@ -190,6 +216,61 @@ class ExcelExportTests(unittest.TestCase):
             self.assertIs(module.ask_save_path, save_dialog.ask_save_path, module.__name__)
         with _patch.object(save_dialog.QFileDialog, 'exec', return_value=0):  # Cancelled.
             self.assertEqual(save_dialog.ask_save_path(None, 'Save', Path('C:/x/a.xlsx'), 'Excel (*.xlsx)'), '')
+
+    def test_save_dialog_sidebar_keeps_recent_quick_access_user_folders_and_drives(self):
+        from PySide6.QtCore import QSettings
+        from gui.widgets.controls import save_dialog
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
+            base = Path(directory)
+            current, recent, pinned = base / 'current', base / 'recent', base / 'pinned'
+            for folder in (current, recent, pinned):
+                folder.mkdir()
+            ini = str(base / 'settings.ini')
+            make = lambda: QSettings(ini, QSettings.IniFormat)
+            with patch.object(save_dialog, '_settings', side_effect=make),                     patch.object(save_dialog, '_quick_access_cache', [str(pinned), str(base / 'gone'), str(current)]):
+                save_dialog.remember_folder(recent)
+                folders = save_dialog.sidebar_folders(current)
+            self.assertEqual(folders[:3], [str(current), str(recent), str(pinned)])  # In use, recent, pinned.
+            self.assertEqual(len(folders), len(set(f.casefold() for f in folders)))  # No duplicates.
+            self.assertTrue(all(Path(f).is_dir() for f in folders))  # Missing folders are dropped.
+            self.assertTrue(any(Path(f) == Path(Path(f).anchor) for f in folders))  # At least one drive root.
+
+    def test_recent_folders_are_newest_first_unique_and_limited(self):
+        from PySide6.QtCore import QSettings
+        from gui.widgets.controls import save_dialog
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
+            base = Path(directory)
+            folders = [base / f'f{i}' for i in range(8)]
+            for folder in folders:
+                folder.mkdir()
+            ini = str(base / 'settings.ini')
+            with patch.object(save_dialog, '_settings', side_effect=lambda: QSettings(ini, QSettings.IniFormat)):
+                for folder in folders:
+                    save_dialog.remember_folder(folder)
+                save_dialog.remember_folder(folders[5])  # Used again: moves to the front, no duplicate.
+                recent = [Path(f) for f in save_dialog.recent_folders()]
+            self.assertEqual(recent[0], folders[5])
+            self.assertEqual(len(recent), save_dialog.RECENT_FOLDER_LIMIT)
+            self.assertEqual(len(set(recent)), len(recent))
+
+    def test_quick_access_is_read_from_the_shell_once_and_failure_is_harmless(self):
+        import subprocess as sp
+        from types import SimpleNamespace as NS
+        from gui.widgets.controls import save_dialog
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
+            real = Path(directory).resolve()
+            output = str(real) + '\n' + 'C:/definitely/not/here' + '\n'
+            shell = NS(returncode=0, stdout=output)
+            with patch.object(save_dialog, '_quick_access_cache', None), \
+                    patch.object(save_dialog.sys, 'platform', 'win32'), \
+                    patch.object(save_dialog.subprocess, 'run', return_value=shell) as run:
+                self.assertEqual(save_dialog.windows_quick_access_folders(), [str(real)])
+                save_dialog.windows_quick_access_folders()
+                run.assert_called_once()  # Cached.
+            with patch.object(save_dialog, '_quick_access_cache', None), \
+                    patch.object(save_dialog.sys, 'platform', 'win32'), \
+                    patch.object(save_dialog.subprocess, 'run', side_effect=sp.TimeoutExpired('powershell', 3)):
+                self.assertEqual(save_dialog.windows_quick_access_folders(), [])
 
     # --- Excel layout ----------------------------------------------------------------
     def test_sheet_has_fixed_widths_wrapped_long_columns_and_app_result_colors(self):

@@ -74,6 +74,28 @@ class ContinuousCaptureTests(unittest.TestCase):
         self.assertFalse(task.alive)
         with can.BLFReader(path) as reader: self.assertEqual(len(list(reader)),1)
 
+    def test_unplugging_the_adapter_after_start_stops_the_recording_by_itself(self):
+        directory = tempfile.TemporaryDirectory(dir=Path.cwd()); self.addCleanup(directory.cleanup)
+        self.addCleanup(self.tab._connection_task.shutdown)
+        path = Path(directory.name) / 'unplugged.blf'
+        controller = self.tab.recording_controller; panel = self.tab.monitor_panel; task = self.tab._connection_task
+        controller.refresh()
+        with patch.object(controller, 'destination', return_value=(path, False)):
+            panel.btn_start.click()  # START, and STOP is never pressed.
+        self.wait(lambda: task.recorder.snapshot.state == 'RECORDING')
+        self.bus.rx('01 02', 0x760); self.wait(lambda: task.recorder.snapshot.written >= 1)
+        self.bus.mode = 'recv_error'  # USB-CAN pulled out.
+        self.wait(lambda: task.recorder.snapshot.state != 'RECORDING' and not task.recorder.snapshot.busy)
+        controller.refresh()
+        self.assertFalse(task.monitoring)
+        self.assertFalse(panel.btn_stop.isEnabled())  # Nothing left to stop.
+        self.assertFalse(panel.btn_start.isEnabled())  # No adapter: START waits for a new connection.
+        self.assertIn('capture stopped unexpectedly', panel.feedback.text())
+        self.assertTrue(self.service.snapshot.rediscovery_required)
+        self.assertEqual(self.bus.close_count, 1)
+        with can.BLFReader(path) as reader:  # The file was closed properly and keeps what was captured.
+            self.assertEqual(len(list(reader)), 1)
+
     def test_shutdown_while_recording_and_busy_uds(self):
         path=self.recording();task=self.tab._connection_task
         self.bus.mode='pending';self.click();self.wait(lambda:len(self.bus.sent)>0)

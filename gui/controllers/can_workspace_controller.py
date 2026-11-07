@@ -479,27 +479,36 @@ class CanWorkspaceController(QObject):
         self._session_dirty.add(self.document_id)
 
     def export_sheets(self):
-        """([(sequence name, rows), ...], vehicle) for EXPORT: every ticked sequence, else the open one."""
+        """([(sequence name, rows), ...], vehicle, skipped) for EXPORT: every ticked sequence, else the open one.
+
+        A ticked sequence that cannot be read is left out and listed in skipped as (name, reason).
+        """
         from gui.widgets.can_interface.excel_export import sheet_for_case
 
         ids = self.sidebar.checked_ids()
         if not ids:
             if self.panel.fn_current_sequence() is None or not self.panel.step_ids:
-                return [], ""
-            return [self.panel.export_sheet()], self.panel.fn_current_vehicle()
-        sheets = []
+                return [], "", []
+            return [self.panel.export_sheet()], self.panel.fn_current_vehicle(), []
+        sheets, skipped, used = [], [], []
         for source_id in ids:
             if source_id == self.document_id:
                 sheets.append(self.panel.export_sheet())
+                used.append(source_id)
                 continue
-            case = self._case_for_source(source_id)
+            try:
+                case = self._case_for_source(source_id)
+            except (OSError, ValueError) as error:
+                skipped.append((Path(source_id).stem, str(error)))
+                continue
             remembered = self._session_runtime.get(source_id)
             sheets.append(sheet_for_case(case, remembered[1] if remembered else ()))
-        if ids[0] == self.document_id:
+            used.append(source_id)
+        if used and used[0] == self.document_id:
             vehicle = self.panel.fn_current_vehicle()
         else:
-            vehicle = self.store.load().vehicles.get(ids[0], "")
-        return sheets, vehicle
+            vehicle = self.store.load().vehicles.get(used[0], "") if used else ""
+        return sheets, vehicle, skipped
 
     def _update_progress(self, *_):
         self.sidebar.set_progress(*self.panel.run_progress())

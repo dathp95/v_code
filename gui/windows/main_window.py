@@ -29,6 +29,8 @@ class MainWindow(QMainWindow):
     def __init__(self, license_status=None, progress_callback=None):
         super().__init__()
         self._progress_callback = progress_callback
+        from gui.widgets.controls.save_dialog import prefetch_quick_access
+        prefetch_quick_access()
         self._report_progress(25, "Initializing core window...")
 
         self.license_status = license_status

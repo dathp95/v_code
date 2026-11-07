@@ -2479,19 +2479,28 @@ class CanDiagnosticTablePanel(DiagnosticSequenceTable):
         from gui.widgets.can_interface.excel_export import export_sheets_excel
         from PySide6.QtWidgets import QMessageBox
 
-        try:
-            if self.export_provider is not None:
-                sheets, vehicle_name = self.export_provider()
-            else:
-                sheets = [self.export_sheet()] if self._test_case and self.step_ids else []
-                vehicle_name = self.fn_current_vehicle()
-        except (OSError, ValueError) as error:
-            QMessageBox.warning(self, "Export", f"Cannot read a ticked sequence: {error}")
-            return
+        skipped = []
+        if self.export_provider is not None:
+            sheets, vehicle_name, skipped = self.export_provider()
+        else:
+            sheets = [self.export_sheet()] if self._test_case and self.step_ids else []
+            vehicle_name = self.fn_current_vehicle()
+
+        def report_skipped():
+            if skipped:
+                QMessageBox.warning(
+                    self, "Export",
+                    "These ticked sequences could not be read and were left out:\n\n"
+                    + "\n".join(f"- {name}: {reason}" for name, reason in skipped))
+
         if not sheets:
-            QMessageBox.warning(self, "Export", "No sequence data to export.")
+            if skipped:
+                report_skipped()
+            else:
+                QMessageBox.warning(self, "Export", "No sequence data to export.")
             return
-        export_sheets_excel(self, sheets, vehicle_name)
+        if export_sheets_excel(self, sheets, vehicle_name) is not None:
+            report_skipped()
 
     def apply_import(self, imported, mode):
 

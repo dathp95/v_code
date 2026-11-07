@@ -216,47 +216,60 @@ class CanDiagnosticSession(QObject):
         except DiagnosticCancelled:
             self.cancel()  # Expired authorization is not a capture/BLF failure.
         except CANIoError as error:
-            self.capture_failed.emit(f'CAN capture stopped unexpectedly: {error}')
-            LOG.exception('Native diagnostic I/O failed')
-            result = (self.client.finish(Outcome.ERROR, detail=str(error)) if self.client else
-                      DiagnosticResult(self.request, Outcome.ERROR, detail=str(error)) if self.request else None)
-            self.timer.stop()
-            self.monitoring = False
-            self.monitoring_changed.emit(False)
-            self._release()
-            try:
-                self.service.fn_transport_failed(error)
-            except Exception:
-                LOG.exception('Cleanup following diagnostic I/O error failed')
-            self.connection_fault.emit(self.service.snapshot)
-            if result is not None:
-                self.finished.emit(result)
+            self._io_failed(error)
         except Exception as error:
-            self.capture_failed.emit(f'CAN acquisition/processing failed: {error}')
-            LOG.exception('Diagnostic processing failed')
-            if self.request is not None:
-                result = (self.client.finish(Outcome.ERROR, detail=str(error)) if self.client else
-                          DiagnosticResult(self.request, Outcome.ERROR, detail=str(error)))
-                self._finish(result)
-            else:
-                self.timer.stop()
-                self.monitoring = False
-                self.monitoring_changed.emit(False)
-                self.connection_fault.emit(self.service.snapshot)
+            self._processing_failed(error)
         finally:
             self._publish()
             if self.monitoring and not self.timer.isActive():
                 self.timer.start()
+
+    def _processing_failed(self, error):
+        """A frame could not be read or understood: the capture can no longer be trusted."""
+        self.capture_failed.emit(f'CAN acquisition/processing failed: {error}')
+        LOG.exception('Diagnostic processing failed')
+        if self.request is not None:
+            result = (self.client.finish(Outcome.ERROR, detail=str(error)) if self.client else
+                      DiagnosticResult(self.request, Outcome.ERROR, detail=str(error)))
+            self._finish(result)
+        else:
+            self.timer.stop()
+            self.monitoring = False
+            self.monitoring_changed.emit(False)
+            self.connection_fault.emit(self.service.snapshot)
+
+    def _io_failed(self, error):
+        """The adapter stopped answering (e.g. USB-CAN unplugged): stop the BLF recording, close and flag the bus."""
+        self.capture_failed.emit(f'CAN capture stopped unexpectedly: {error}')
+        LOG.exception('Native diagnostic I/O failed')
+        result = (self.client.finish(Outcome.ERROR, detail=str(error)) if self.client else
+                  DiagnosticResult(self.request, Outcome.ERROR, detail=str(error)) if self.request else None)
+        self.timer.stop()
+        self.monitoring = False
+        self.monitoring_changed.emit(False)
+        self._release()
+        try:
+            self.service.fn_transport_failed(error)
+        except Exception:
+            LOG.exception('Cleanup following diagnostic I/O error failed')
+        self.connection_fault.emit(self.service.snapshot)
+        if result is not None:
+            self.finished.emit(result)
 
     @Slot()
     def _pump(self):
         if not self.monitoring: return
         try:
             if self.request is None:
-                for _ in range(32):
-                    frame=self.service.fn_receive_capture_frame()
-                    if frame is None: break
-                    self._capture(frame)
+                try:
+                    for _ in range(32):
+                        frame=self.service.fn_receive_capture_frame()
+                        if frame is None: break
+                        self._capture(frame)
+                except CANIoError as error:
+                    self._io_failed(error)  # Idle monitoring / BLF recording with the adapter pulled out.
+                except Exception as error:
+                    self._processing_failed(error)
                 return
             self._execute_diagnostic()
         finally:
