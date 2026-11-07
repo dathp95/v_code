@@ -7,7 +7,7 @@ from unittest.mock import patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QPushButton, QApplication
 
 from gui.tabs.log_analyzer_tab import LogAnalyzerTab
 from gui.tabs.vehicle_manager_tab import VehicleManagerTab
@@ -59,18 +59,15 @@ class VehicleSelectorWidgetTests(unittest.TestCase):
             selector.cmb_vehicle.styleSheet(),
         )
 
-    def test_vehicle_manager_has_display_names_import_button(self):
+    def test_vehicle_manager_no_longer_has_the_display_names_buttons(self):
         tab = VehicleManagerTab()
         self.addCleanup(tab.deleteLater)
 
-        self.assertEqual(
-            tab.btn_import_display_names.text(),
-            "Import Display Names",
-        )
-        self.assertEqual(
-            tab.btn_import_display_rules.text(),
-            "Import Display Rules",
-        )
+        self.assertFalse(hasattr(tab, "btn_import_display_names"))
+        self.assertFalse(hasattr(tab, "btn_import_display_rules"))
+        texts = {button.text() for button in tab.findChildren(QPushButton)}
+        self.assertNotIn("Import File Display Names", texts)
+        self.assertNotIn("Import Rules Display Names", texts)
 
     def test_vehicle_manager_starts_without_selected_vehicle_or_ecus(self):
         tab = VehicleManagerTab()
@@ -190,52 +187,6 @@ class VehicleSelectorWidgetTests(unittest.TestCase):
             "BCM|681|601\nACM|688|608",
         )
         self.assertTrue(dialog.txt_ecus.isReadOnly())
-
-    def test_display_names_import_uses_selected_json_file(self):
-        tab = VehicleManagerTab()
-        self.addCleanup(tab.deleteLater)
-
-        with patch(
-            "gui.tabs.vehicle_manager_tab.QFileDialog.getOpenFileName",
-            return_value=("C:/display_names.json", "JSON Files (*.json)"),
-        ), patch(
-            "gui.tabs.vehicle_manager_tab.import_display_names"
-        ) as import_file, patch(
-            "gui.tabs.vehicle_manager_tab.reload_display_names"
-        ) as reload_names, patch.object(
-            tab,
-            "_show_auto_close_info",
-        ) as show_success:
-            tab._on_import_display_names_clicked()
-
-        import_file.assert_called_once_with("C:/display_names.json")
-        reload_names.assert_called_once_with()
-        show_success.assert_called_once()
-
-    def test_display_rules_import_uses_dialog_rules(self):
-        tab = VehicleManagerTab()
-        self.addCleanup(tab.deleteLater)
-
-        dialog = patch(
-            "gui.tabs.vehicle_manager_tab.ImportDisplayNamesDialog"
-        ).start()
-        self.addCleanup(patch.stopall)
-        dialog.return_value.exec.return_value = 1
-        dialog.return_value.fn_rules.return_value = "22 F1 20|Global Time"
-
-        with patch(
-            "gui.tabs.vehicle_manager_tab.import_display_name_rules"
-        ) as import_rules, patch(
-            "gui.tabs.vehicle_manager_tab.reload_display_names"
-        ) as reload_names, patch.object(
-            tab,
-            "_show_auto_close_info",
-        ) as show_success:
-            tab._on_import_display_rules_clicked()
-
-        import_rules.assert_called_once_with("22 F1 20|Global Time")
-        reload_names.assert_called_once_with()
-        show_success.assert_called_once()
 
     def test_import_dialog_cancel_buttons_use_neutral_cancel_control(self):
         ecu_dialog = ImportECUDialog()
@@ -883,7 +834,7 @@ class LogAnalyzerTabTests(unittest.TestCase):
         self.assertIsNone(self.tab._log_channel_worker)
 
 
-    def test_refresh_button_aligns_with_browse_across_resizes(self):
+    def test_refresh_button_aligns_with_the_log_row_end_button_across_resizes(self):
         self.assertFalse(self.tab.filter_box.btn_refresh.isEnabled())
 
         for width in (1200, 820):
@@ -892,7 +843,7 @@ class LogAnalyzerTabTests(unittest.TestCase):
                 self.tab.show()
                 self.application.processEvents()
 
-                browse_button = self.tab.log_selector.browse_button
+                browse_button = self.tab.log_selector.settings_button
                 refresh_button = self.tab.filter_box.btn_refresh
                 browse_left = browse_button.mapTo(
                     self.tab,
@@ -916,7 +867,7 @@ class LogAnalyzerTabTests(unittest.TestCase):
                 self.assertEqual(refresh_left, browse_left)
                 self.assertEqual(refresh_right, browse_right)
                 self.assertEqual(
-                    browse_button.x()
+                    self.tab.log_selector.browse_button.x()
                     - self.tab.log_selector.edit_path.geometry().right()
                     - 1,
                     8,

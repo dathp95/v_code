@@ -1,0 +1,10 @@
+{
+    "name": "OTHER",
+    "manufacturer": "",
+    "version": "1.0.0",
+    "description": "",
+    "ecus": [
+        "BCM",
+        "EPS"
+    ]
+}

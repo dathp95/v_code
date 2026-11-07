@@ -1,0 +1,11 @@
+{
+    "name": "BCM",
+    "request_id": "681",
+    "response_id": "601",
+    "aliases": [],
+    "resources": {
+        "dbc": "keep.dbc",
+        "custom": "keep"
+    },
+    "quick_requests": []
+}

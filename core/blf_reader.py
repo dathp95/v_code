@@ -50,6 +50,20 @@ def _iter_blf_messages(blf_file):
         raise ValueError(f"Invalid or truncated BLF log: {error}") from error
 
 
+def get_blf_channel_id_counts(blf_file):
+    """{logical channel: {CAN ID: classic data frames}}; a channel with no usable frame maps to {}."""
+    counts = {}
+    for message in _iter_blf_messages(blf_file):
+        channel = _fn_raw_blf_channel_to_logical_channel(message.channel)
+        if channel is None:
+            continue
+        ids = counts.setdefault(channel, {})
+        if message.is_fd or message.is_remote_frame or message.is_error_frame:
+            continue
+        ids[message.arbitration_id] = ids.get(message.arbitration_id, 0) + 1
+    return counts
+
+
 def get_blf_channels(blf_file):
     channels = set()
     for message in _iter_blf_messages(blf_file):

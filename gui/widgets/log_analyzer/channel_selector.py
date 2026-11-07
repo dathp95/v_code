@@ -99,6 +99,32 @@ class DiagnosticChannelSelectorWidget(QWidget):
     def fn_channel(self):
         return self.cmb_channel.currentData()
 
+    def _reset_auto_marks(self):
+        for index in range(self.cmb_channel.count()):
+            self.cmb_channel.setItemText(index, f"Channel {self.cmb_channel.itemData(index)}")
+        self.cmb_channel.setToolTip("")
+
+    def fn_select_channel(self, channel, *, auto=False):
+        """Select a listed channel (emits channel_changed); auto=True marks it as found by the tool."""
+        index = self.cmb_channel.findData(channel)
+        if index < 0:
+            return False
+        self._reset_auto_marks()
+        if auto:
+            self.cmb_channel.setItemText(index, f"Channel {channel} (auto)")
+            self.cmb_channel.setToolTip("Detected automatically: this channel carries the vehicle's diagnostic request/response IDs.")
+        self.cmb_channel.setCurrentIndex(index)
+        return True
+
+    def fn_clear_selection(self):
+        """Back to "Select channel..." (several channels listed, none chosen)."""
+        self._reset_auto_marks()
+        self.cmb_channel.setCurrentIndex(-1)
+
+    def fn_is_auto_selected(self):
+        index = self.cmb_channel.currentIndex()
+        return index >= 0 and self.cmb_channel.itemText(index).endswith("(auto)")
+
     def fn_refresh_theme(self):
         self.lbl_channel.fn_refresh_theme()
         self.cmb_channel.fn_refresh_theme()

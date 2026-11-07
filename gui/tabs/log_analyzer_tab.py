@@ -24,8 +24,10 @@ from gui.widgets.log_analyzer.right_panel import RightPanel
 from gui.widgets.vehicle_manager.vehicle_selector import VehicleSelectorWidget
 from gui.workers.analysis_worker import AnalysisWorker
 from gui.workers.log_channel_worker import LogChannelWorker
+from core.diagnostic_channel import detect_diagnostic_channel
 from services.vehicle_service import VehicleService
 from repositories.load_config_start_store import LoadConfigStartStore
+from gui.controllers.display_names_import_controller import DisplayNamesImportController
 
 
 LOG = logging.getLogger(__name__)
@@ -49,6 +51,9 @@ class LogAnalyzerTab(QWidget):
         self._log_loading = False
         self._log_channel_thread = None
         self._log_channel_worker = None
+        # {channel: {can_id: frames}} of a multi-channel log: the diagnostic channel is picked from it.
+        self._log_channel_ids = None
+        self._channel_chosen_manually = False
         self._parser_diagnostics = None
 
         # Controllers
@@ -109,6 +114,7 @@ class LogAnalyzerTab(QWidget):
         self.log_selector = PathSelectorWidget(
             "Log File: Ensure the correct Diagnostic Channel is selected",
             "Log Files (*.blf *.asc *.txt)",
+            settings=True,
         )
 
         # Keep Vehicle / Log File labels at the same height
@@ -253,10 +259,20 @@ class LogAnalyzerTab(QWidget):
         self.export_controller = ReportController()
         self.clipboard_controller = ClipboardController()
         self.vehicle_service = VehicleService()
+        self.display_names_import = DisplayNamesImportController(self)
 
     def _connect_signals(self):
         self.vehicle_selector.vehicle_changed.connect(
             self.fn_vehicle_changed
+        )
+
+        self.log_selector.add_setting_action(
+            "Import Rules Display Names",
+            self.display_names_import.import_rules,
+        )
+        self.log_selector.add_setting_action(
+            "Import File Display Names",
+            self.display_names_import.import_file,
         )
 
         self.log_selector.path_changed.connect(
@@ -265,6 +281,10 @@ class LogAnalyzerTab(QWidget):
 
         self.channel_selector.channel_changed.connect(
             self._fn_channel_changed
+        )
+        # "activated" fires only for the user's own choice, never for the automatic one.
+        self.channel_selector.cmb_channel.activated.connect(
+            self._fn_channel_chosen_by_user
         )
 
         self.filter_box.filter_changed.connect(
@@ -377,7 +397,44 @@ class LogAnalyzerTab(QWidget):
 
         self._remember_vehicle(vehicle_name)
 
+        self._auto_select_diagnostic_channel()
+
         self._update_analyze_state()
+
+    def _fn_channel_chosen_by_user(self, _index=None) -> None:
+        self._channel_chosen_manually = True
+
+    def _fn_log_channel_ids_ready(self, counts) -> None:
+        self._log_channel_ids = counts
+
+    def _auto_select_diagnostic_channel(self) -> bool:
+        """Pick the channel that carries the selected vehicle's diagnostic IDs (log with several channels).
+
+        Runs when the log is loaded and whenever the vehicle changes, until the user picks a channel
+        themselves. No match, or an ambiguous one, leaves the choice to the user.
+        """
+        selector = self.channel_selector
+        if (
+            self._channel_chosen_manually
+            or self._log_channel_ids is None
+            or selector.cmb_channel.count() < 2
+        ):
+            return False
+
+        channel = detect_diagnostic_channel(
+            self._log_channel_ids,
+            self._current_vehicle,
+        )
+
+        if channel is None:
+            if selector.fn_is_auto_selected():
+                selector.fn_clear_selection()
+            return False
+
+        if selector.fn_channel() == channel and selector.fn_is_auto_selected():
+            return True
+
+        return selector.fn_select_channel(channel, auto=True)
 
     def _fn_channel_changed(
         self,
@@ -413,6 +470,8 @@ class LogAnalyzerTab(QWidget):
         self.right_panel.action_panel.fn_clear_quick_filter_info()
 
         self._parser_diagnostics = None
+        self._log_channel_ids = None
+        self._channel_chosen_manually = False
         self._invalidate_analysis_result()
         self.channel_selector.fn_clear()
         self.right_panel.action_panel.fn_set_analysis_ready()
@@ -444,6 +503,7 @@ class LogAnalyzerTab(QWidget):
             self._log_channel_thread
         )
         self._log_channel_worker.diagnostics_ready.connect(self._fn_parser_diagnostics_ready)
+        self._log_channel_worker.channel_ids_ready.connect(self._fn_log_channel_ids_ready)
 
         self._log_channel_thread.started.connect(
             self._log_channel_worker.run
@@ -490,6 +550,7 @@ class LogAnalyzerTab(QWidget):
 
         self._log_loading = False
         self.channel_selector.fn_set_channels(valid_channels)
+        self._auto_select_diagnostic_channel()
         self._fn_refresh_parser_diagnostics()
         self._fn_set_log_loading_inputs_enabled(True)
         self.right_panel.action_panel.fn_set_log_loaded()
@@ -501,13 +562,21 @@ class LogAnalyzerTab(QWidget):
         if self._parser_diagnostics is not None and self._parser_diagnostics.has_warnings:
             return
 
+        message = (
+            "Log file loaded successfully.\n"
+            f"Detected {channel_count} CAN channel{plural}."
+        )
+
+        if self.channel_selector.fn_is_auto_selected():
+            message += (
+                "\nDiagnostic channel detected automatically: "
+                f"Channel {self.channel_selector.fn_channel()}."
+            )
+
         QMessageBox.information(
             self,
             "Log File Loaded",
-            (
-                "Log file loaded successfully.\n"
-                f"Detected {channel_count} CAN channel{plural}."
-            ),
+            message,
         )
 
     def _fn_log_channels_failed(

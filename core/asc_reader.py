@@ -11,7 +11,7 @@
 
 # extract_positive_responses()
 from pathlib import Path
-from core.blf_reader import get_blf_channels, load_blf
+from core.blf_reader import get_blf_channel_id_counts, get_blf_channels, load_blf
 from core.log_parsers.registry import detect_txt_parser
 
 
@@ -115,6 +115,36 @@ def _get_asc_channels(file_name):
                 channels.add(msg["channel"])
 
     return sorted(channels)
+
+
+def get_log_channel_id_counts(log_file):
+    """{channel: {can_id: frames}} in one pass; its keys are the channels get_log_channels() reports.
+
+    Used to tell which channel of a multi-channel log carries the vehicle's diagnostic IDs.
+    """
+    suffix = Path(log_file).suffix.lower()
+
+    if suffix == ".asc":
+        counts = {}
+        with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                msg = parse_asc_line(line)
+                if msg is not None:
+                    ids = counts.setdefault(msg["channel"], {})
+                    ids[msg["can_id"]] = ids.get(msg["can_id"], 0) + 1
+        return counts
+
+    if suffix == ".blf":
+        return get_blf_channel_id_counts(log_file)
+
+    if suffix == ".txt":
+        counts = {}
+        for msg in detect_txt_parser(log_file).load_messages(log_file):
+            ids = counts.setdefault(msg["channel"], {})
+            ids[msg["can_id"]] = ids.get(msg["can_id"], 0) + 1
+        return counts
+
+    raise ValueError(f"Unsupported log format: {suffix}")
 
 
 def get_log_channels(log_file, *, diagnostics=None):
